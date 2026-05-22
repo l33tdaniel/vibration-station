@@ -63,7 +63,8 @@ function globalBar(store: AppStore, ble: BleService): HTMLElement {
 
 function deviceCard(d: DeviceState, store: AppStore, ble: BleService, rerender: () => void): HTMLElement {
   const id = d.id;
-  const s: Settings = d.custom;
+  // show resolved settings: global for follow devices, own values for custom
+  const s: Settings = resolveSettings(store.get(), id);
   const disabled = d.mode === "follow";
 
   return h("article", { "data-role": "device-card", "data-id": id }, [
