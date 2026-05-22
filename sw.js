@@ -1,5 +1,6 @@
-// Minimal offline cache for the single-file app. Bump CACHE to force refresh.
-const CACHE = "vibration-v1";
+// Network-first cache for the single-file app: newest deploy always wins when
+// online, falls back to the cached copy offline. Bump CACHE to evict old caches.
+const CACHE = "vibration-v2";
 const ASSETS = ["./", "./index.html"];
 
 self.addEventListener("install", (e) => {
@@ -15,7 +16,16 @@ self.addEventListener("activate", (e) => {
   );
 });
 
-// Cache-first: works fully offline after the first load.
+// Network-first: fetch fresh, cache the result, fall back to cache when offline.
 self.addEventListener("fetch", (e) => {
-  e.respondWith(caches.match(e.request).then((hit) => hit || fetch(e.request)));
+  if (e.request.method !== "GET") return;
+  e.respondWith(
+    fetch(e.request)
+      .then((resp) => {
+        const copy = resp.clone();
+        caches.open(CACHE).then((c) => c.put(e.request, copy));
+        return resp;
+      })
+      .catch(() => caches.match(e.request).then((hit) => hit || caches.match("./index.html"))),
+  );
 });

@@ -17,6 +17,7 @@
       .cards article header { font-weight: 600; font-size: 1.25rem; margin-bottom: .25rem; }
       .hint { color: #b00020; min-height: 1.2em; }
       .unsupported { font-size: 1.2rem; line-height: 1.55; }
+      .version { color: #999; font-size: .85rem; margin-top: 2rem; }
     </style>
   </head>
   <body>
@@ -32,6 +33,7 @@
       const FREQ_MIN = 80;
       const FREQ_MAX = 160;
       const MAX_DEVICES = 4;
+      const VERSION = "2026-05-22.2"; // bump on each deploy; shown at page bottom
 
       // ===== Encoding =====
       function clamp(value, min, max) {
@@ -277,6 +279,9 @@
         ble.onDisconnect((id) => { store.removeDevice(id); renderAll(); });
         renderAll();
       }
+
+      // Visible build stamp so you can confirm which version actually loaded.
+      document.body.append(h("p", { class: "version" }, [`build ${VERSION}`]));
 
       // Offline cache (only when served over http/https; skipped on file://)
       if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
