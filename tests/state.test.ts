@@ -27,21 +27,21 @@ describe("AppStore", () => {
 describe("resolveSettings", () => {
   it("returns global for follow devices, custom for custom devices", () => {
     const s = new AppStore();
-    s.setGlobal({ frequency: 60, intensity: 70, power: true });
+    s.setGlobal({ frequency: 100, power: true });
     s.addDevice("a", "A");
     s.addDevice("b", "B");
     s.setDeviceMode("b", "custom");
-    s.setDeviceCustom("b", { frequency: 10 });
-    expect(resolveSettings(s.get(), "a").frequency).toBe(60);
-    expect(resolveSettings(s.get(), "b").frequency).toBe(10);
+    s.setDeviceCustom("b", { frequency: 90 });
+    expect(resolveSettings(s.get(), "a").frequency).toBe(100);
+    expect(resolveSettings(s.get(), "b").frequency).toBe(90);
   });
 });
 
 describe("pushSettings", () => {
-  it("writes power, frequency, intensity for one device", async () => {
+  it("writes power and frequency for one device", async () => {
     const ble = new FakeBleService();
-    await pushSettings(ble, "a", { power: true, frequency: 55, intensity: 40 });
-    expect(ble.calls.map((c) => c.m)).toEqual(["setPower", "setFrequency", "setIntensity"]);
-    expect(ble.calls[1].args).toEqual(["a", 55]);
+    await pushSettings(ble, "a", { power: true, frequency: 100 });
+    expect(ble.calls.map((c) => c.m)).toEqual(["setPower", "setFrequency"]);
+    expect(ble.calls[1].args).toEqual(["a", 100]);
   });
 });

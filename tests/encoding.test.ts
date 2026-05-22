@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  clamp, encodePower, encodeFrequency, encodeIntensity,
-  FREQ_MIN, FREQ_MAX, INTENSITY_MAX,
+  clamp, encodePower, encodeFrequency,
+  FREQ_MIN, FREQ_MAX,
 } from "../src/encoding";
 
 describe("clamp", () => {
@@ -21,14 +21,10 @@ describe("encoders", () => {
     expect(Array.from(encodePower(false))).toEqual([0]);
   });
   it("encodes frequency as little-endian uint16, clamped", () => {
-    expect(Array.from(encodeFrequency(258))).toEqual([2, 1]); // 258 = 0x0102
+    expect(Array.from(encodeFrequency(130))).toEqual([130, 0]); // 130 = 0x0082 LE
     expect(Array.from(encodeFrequency(FREQ_MAX + 1000))).toEqual(
       Array.from(encodeFrequency(FREQ_MAX)),
-    ); // over-max clamps to FREQ_MAX
-    expect(Array.from(encodeFrequency(FREQ_MIN - 5))).toEqual([0, 0]);
-  });
-  it("encodes intensity as one clamped byte", () => {
-    expect(Array.from(encodeIntensity(50))).toEqual([50]);
-    expect(Array.from(encodeIntensity(INTENSITY_MAX + 10))).toEqual([100]);
+    ); // over-max clamps to FREQ_MAX (160)
+    expect(Array.from(encodeFrequency(FREQ_MIN - 50))).toEqual([FREQ_MIN, 0]); // under-min clamps to FREQ_MIN (80)
   });
 });

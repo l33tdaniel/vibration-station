@@ -3,7 +3,6 @@ import type { BleService } from "./ble/types";
 export interface Settings {
   power: boolean;
   frequency: number;
-  intensity: number;
 }
 
 export type DeviceMode = "follow" | "custom";
@@ -20,7 +19,7 @@ export interface AppState {
   devices: DeviceState[];
 }
 
-const DEFAULT_GLOBAL: Settings = { power: false, frequency: 50, intensity: 50 };
+const DEFAULT_GLOBAL: Settings = { power: false, frequency: 120 };
 
 export function resolveSettings(state: AppState, id: string): Settings {
   const d = state.devices.find((x) => x.id === id);
@@ -31,7 +30,6 @@ export function resolveSettings(state: AppState, id: string): Settings {
 export async function pushSettings(ble: BleService, id: string, s: Settings): Promise<void> {
   await ble.setPower(id, s.power);
   await ble.setFrequency(id, s.frequency);
-  await ble.setIntensity(id, s.intensity);
 }
 
 export class AppStore {

@@ -1,14 +1,13 @@
 import {
   type BleService, type ConnectedDevice,
-  SERVICE_UUID, POWER_CHAR_UUID, FREQ_CHAR_UUID, INTENSITY_CHAR_UUID,
+  SERVICE_UUID, POWER_CHAR_UUID, FREQ_CHAR_UUID,
 } from "./types";
-import { encodePower, encodeFrequency, encodeIntensity } from "../encoding";
+import { encodePower, encodeFrequency } from "../encoding";
 
 interface Conn {
   device: BluetoothDevice;
   power: BluetoothRemoteGATTCharacteristic;
   freq: BluetoothRemoteGATTCharacteristic;
-  intensity: BluetoothRemoteGATTCharacteristic;
   onDrop: () => void;
 }
 
@@ -39,12 +38,11 @@ export class WebBluetoothService implements BleService {
     if (!device.gatt) throw new Error("GATT not available on this device");
     const server = await device.gatt.connect();
     const service = await server.getPrimaryService(SERVICE_UUID);
-    const [power, freq, intensity] = await Promise.all([
+    const [power, freq] = await Promise.all([
       service.getCharacteristic(POWER_CHAR_UUID),
       service.getCharacteristic(FREQ_CHAR_UUID),
-      service.getCharacteristic(INTENSITY_CHAR_UUID),
     ]);
-    return { device, power, freq, intensity, onDrop };
+    return { device, power, freq, onDrop };
   }
 
   private get(id: string): Conn {
@@ -58,9 +56,6 @@ export class WebBluetoothService implements BleService {
   }
   async setFrequency(id: string, hz: number): Promise<void> {
     await this.get(id).freq.writeValue(encodeFrequency(hz));
-  }
-  async setIntensity(id: string, pct: number): Promise<void> {
-    await this.get(id).intensity.writeValue(encodeIntensity(pct));
   }
   async disconnect(id: string): Promise<void> {
     const conn = this.conns.get(id);

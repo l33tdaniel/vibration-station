@@ -19,9 +19,6 @@ export class FakeBleService implements BleService {
   async setFrequency(id: string, hz: number): Promise<void> {
     this.calls.push({ m: "setFrequency", args: [id, hz] });
   }
-  async setIntensity(id: string, pct: number): Promise<void> {
-    this.calls.push({ m: "setIntensity", args: [id, pct] });
-  }
   async disconnect(id: string): Promise<void> {
     this.calls.push({ m: "disconnect", args: [id] });
   }
