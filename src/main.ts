@@ -32,6 +32,9 @@ if (!ble.isSupported()) {
     renderControlView(controlRoot, { store, ble });
   };
 
-  ble.onDisconnect(() => renderAll());
+  ble.onDisconnect((id) => {
+    store.removeDevice(id);
+    renderAll();
+  });
   renderAll();
 }

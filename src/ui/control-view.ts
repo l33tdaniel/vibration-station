@@ -1,5 +1,5 @@
 import type { AppStore, DeviceState, Settings } from "../state";
-import { resolveSettings } from "../state";
+import { resolveSettings, pushSettings } from "../state";
 import type { BleService } from "../ble/types";
 import { FREQ_MIN, FREQ_MAX } from "../encoding";
 import { h, clear } from "./dom";
@@ -71,7 +71,7 @@ function deviceCard(d: DeviceState, store: AppStore, ble: BleService, rerender: 
     h("header", {}, [d.name]), // textContent — safe against malicious advertised names
     h("label", {}, ["Custom", checkbox("mode", d.mode === "custom", false, (v) => {
       store.setDeviceMode(id, v ? "custom" : "follow");
-      if (!v) void pushResolved(ble, store, id);
+      if (!v) void pushSettings(ble, id, resolveSettings(store.get(), id));
       rerender();
     })]),
     h("label", {}, ["Power", checkbox("power", s.power, disabled, (v) => {
@@ -88,10 +88,4 @@ function deviceCard(d: DeviceState, store: AppStore, ble: BleService, rerender: 
       rerender();
     } }, ["Remove"]),
   ]);
-}
-
-async function pushResolved(ble: BleService, store: AppStore, id: string): Promise<void> {
-  const s = resolveSettings(store.get(), id);
-  await ble.setPower(id, s.power);
-  await ble.setFrequency(id, s.frequency);
 }
