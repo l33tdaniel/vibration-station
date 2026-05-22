@@ -37,19 +37,17 @@ the UI but disables Bluetooth and offline caching.
 
 ## Firmware contract
 
-Devices advertise a custom GATT service (UUIDs near the top of `index.html`) with two
-write characteristics:
+The app targets `Bluetooth_Board_Code.ino` as-is: the device advertises the standard
+Battery service `180F` with a single int characteristic `2A19`.
 
-| Characteristic | Type        | Value                  |
-|----------------|-------------|------------------------|
-| Power          | `uint8`     | `0` (off) / `1` (on)   |
-| Frequency      | `uint16` LE | Hz, range **80–160**   |
+| Characteristic | Type        | Value                                  |
+|----------------|-------------|----------------------------------------|
+| `2A19`         | `int32` LE  | `0` = off, `80–160` = tone frequency (Hz) |
 
-Intensity/amplitude is not part of v1 (the motor is frequency-only via `tone()`).
-`Bluetooth_Board_Code.ino` is the current reference firmware; it will be upgraded to
-expose the custom service and these two characteristics. Replace the placeholder UUIDs
-in `index.html` (`SERVICE_UUID`, `POWER_CHAR_UUID`, `FREQ_CHAR_UUID`) with the
-firmware's real UUIDs.
+Power and frequency collapse into this one value: power off writes `0`, power on writes
+the clamped frequency. Intensity/amplitude is not exposed (the motor is frequency-only
+via `tone()`). The UUIDs and encoding live near the top of `index.html`
+(`SERVICE_UUID`, `MOTOR_CHAR_UUID`, `encodeMotor`).
 
 ## History
 

@@ -23,10 +23,12 @@
     <div id="app"></div>
 
     <script type="module">
-      // ===== Device contract (placeholders — replace with firmware UUIDs) =====
-      const SERVICE_UUID = "f0000001-0451-4000-b000-000000000000";
-      const POWER_CHAR_UUID = "f0000002-0451-4000-b000-000000000000";
-      const FREQ_CHAR_UUID = "f0000003-0451-4000-b000-000000000000";
+      // ===== Device contract (matches Bluetooth_Board_Code.ino) =====
+      // Standard Battery service 180F with one int characteristic 2A19.
+      // Value is a 4-byte little-endian int: 0 = motor off, 80-160 = tone (Hz).
+      const SERVICE_UUID = "0000180f-0000-1000-8000-00805f9b34fb"; // 0x180F
+      const MOTOR_CHAR_UUID = "00002a19-0000-1000-8000-00805f9b34fb"; // 0x2A19
+      const DEVICE_NAME_PREFIX = "Vibration Device";
       const FREQ_MIN = 80;
       const FREQ_MAX = 160;
       const MAX_DEVICES = 4;
@@ -36,14 +38,11 @@
         if (Number.isNaN(value)) return min;
         return Math.min(max, Math.max(min, Math.round(value)));
       }
-      function encodePower(on) {
-        const buf = new Uint8Array(1);
-        buf[0] = on ? 1 : 0;
-        return buf;
-      }
-      function encodeFrequency(hz) {
-        const buf = new Uint8Array(2);
-        new DataView(buf.buffer).setUint16(0, clamp(hz, FREQ_MIN, FREQ_MAX), true);
+      // Firmware reads one int: 0 = off, otherwise the clamped frequency.
+      function encodeMotor(power, hz) {
+        const value = power ? clamp(hz, FREQ_MIN, FREQ_MAX) : 0;
+        const buf = new Uint8Array(4);
+        new DataView(buf.buffer).setInt32(0, value, true);
         return buf;
       }
 
@@ -107,7 +106,8 @@
         isSupported() { return typeof navigator !== "undefined" && !!navigator.bluetooth; }
         async requestDevice() {
           const device = await navigator.bluetooth.requestDevice({
-            filters: [{ services: [SERVICE_UUID] }],
+            filters: [{ services: [SERVICE_UUID] }, { namePrefix: DEVICE_NAME_PREFIX }],
+            optionalServices: [SERVICE_UUID],
           });
           const id = device.id;
           const onDrop = () => { this.conns.delete(id); if (this.disconnectCb) this.disconnectCb(id); };
@@ -120,19 +120,18 @@
           if (!device.gatt) throw new Error("GATT not available on this device");
           const server = await device.gatt.connect();
           const service = await server.getPrimaryService(SERVICE_UUID);
-          const [power, freq] = await Promise.all([
-            service.getCharacteristic(POWER_CHAR_UUID),
-            service.getCharacteristic(FREQ_CHAR_UUID),
-          ]);
-          return { device, power, freq, onDrop };
+          const motor = await service.getCharacteristic(MOTOR_CHAR_UUID);
+          return { device, motor, onDrop, power: false, freq: 120 };
         }
         get(id) {
           const c = this.conns.get(id);
           if (!c) throw new Error(`device ${id} not connected`);
           return c;
         }
-        async setPower(id, on) { await this.get(id).power.writeValue(encodePower(on)); }
-        async setFrequency(id, hz) { await this.get(id).freq.writeValue(encodeFrequency(hz)); }
+        // Single characteristic: write power ? frequency : 0 on either change.
+        async write(c) { await c.motor.writeValue(encodeMotor(c.power, c.freq)); }
+        async setPower(id, on) { const c = this.get(id); c.power = on; await this.write(c); }
+        async setFrequency(id, hz) { const c = this.get(id); c.freq = hz; await this.write(c); }
         async disconnect(id) {
           const conn = this.conns.get(id);
           if (!conn) return;
