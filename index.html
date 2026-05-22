@@ -4,9 +4,285 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Vibration Station</title>
+    <style>
+      :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      body { margin: 0; padding: 1rem; max-width: 680px; margin-inline: auto; color: #111; }
+      h2 { font-size: 1.4rem; margin: 0 0 .75rem; }
+      button { font-size: 1.25rem; padding: .8rem 1.25rem; border-radius: .6rem; border: 1px solid #888; background: #f4f4f5; cursor: pointer; }
+      button:disabled { opacity: .5; cursor: default; }
+      label { display: flex; align-items: center; gap: .75rem; font-size: 1.2rem; margin: .9rem 0; }
+      input[type="range"] { flex: 1; height: 2.2rem; }
+      input[type="checkbox"] { width: 1.7rem; height: 1.7rem; }
+      .global-bar, .cards article { border: 1px solid #ccc; border-radius: .8rem; padding: 1rem 1.2rem; margin: 1rem 0; }
+      .cards article header { font-weight: 600; font-size: 1.25rem; margin-bottom: .25rem; }
+      .hint { color: #b00020; min-height: 1.2em; }
+      .unsupported { font-size: 1.2rem; line-height: 1.55; }
+    </style>
   </head>
   <body>
     <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
+
+    <script type="module">
+      // ===== Device contract (placeholders — replace with firmware UUIDs) =====
+      const SERVICE_UUID = "f0000001-0451-4000-b000-000000000000";
+      const POWER_CHAR_UUID = "f0000002-0451-4000-b000-000000000000";
+      const FREQ_CHAR_UUID = "f0000003-0451-4000-b000-000000000000";
+      const FREQ_MIN = 80;
+      const FREQ_MAX = 160;
+      const MAX_DEVICES = 4;
+
+      // ===== Encoding =====
+      function clamp(value, min, max) {
+        if (Number.isNaN(value)) return min;
+        return Math.min(max, Math.max(min, Math.round(value)));
+      }
+      function encodePower(on) {
+        const buf = new Uint8Array(1);
+        buf[0] = on ? 1 : 0;
+        return buf;
+      }
+      function encodeFrequency(hz) {
+        const buf = new Uint8Array(2);
+        new DataView(buf.buffer).setUint16(0, clamp(hz, FREQ_MIN, FREQ_MAX), true);
+        return buf;
+      }
+
+      // ===== State =====
+      const DEFAULT_GLOBAL = { power: false, frequency: 120 };
+
+      function resolveSettings(state, id) {
+        const d = state.devices.find((x) => x.id === id);
+        if (!d) throw new Error(`unknown device ${id}`);
+        return d.mode === "custom" ? d.custom : state.global;
+      }
+      async function pushSettings(ble, id, s) {
+        await ble.setPower(id, s.power);
+        await ble.setFrequency(id, s.frequency);
+      }
+
+      class AppStore {
+        constructor() {
+          this.state = { global: { ...DEFAULT_GLOBAL }, devices: [] };
+          this.listeners = [];
+        }
+        get() {
+          return { global: { ...this.state.global }, devices: [...this.state.devices] };
+        }
+        subscribe(fn) { this.listeners.push(fn); }
+        emit() { for (const l of this.listeners) l(); }
+        find(id) { return this.state.devices.find((d) => d.id === id); }
+        setGlobal(p) { this.state.global = { ...this.state.global, ...p }; this.emit(); }
+        addDevice(id, name) {
+          if (this.find(id)) return;
+          this.state.devices.push({ id, name, mode: "follow", custom: { ...this.state.global } });
+          this.emit();
+        }
+        removeDevice(id) {
+          this.state.devices = this.state.devices.filter((d) => d.id !== id);
+          this.emit();
+        }
+        setDeviceMode(id, mode) { const d = this.find(id); if (!d) return; d.mode = mode; this.emit(); }
+        setDeviceCustom(id, p) { const d = this.find(id); if (!d) return; d.custom = { ...d.custom, ...p }; this.emit(); }
+      }
+
+      // ===== BLE: in-memory fake (used with ?fake) =====
+      class FakeBleService {
+        constructor() { this.calls = []; this.counter = 0; this.disconnectCb = null; }
+        isSupported() { return true; }
+        async requestDevice() {
+          const n = ++this.counter;
+          this.calls.push({ m: "requestDevice", args: [] });
+          return { id: `fake-${n}`, name: `Fake Device ${n}` };
+        }
+        async setPower(id, on) { this.calls.push({ m: "setPower", args: [id, on] }); }
+        async setFrequency(id, hz) { this.calls.push({ m: "setFrequency", args: [id, hz] }); }
+        async disconnect(id) { this.calls.push({ m: "disconnect", args: [id] }); }
+        onDisconnect(cb) { this.disconnectCb = cb; }
+        simulateDisconnect(id) { if (this.disconnectCb) this.disconnectCb(id); }
+      }
+
+      // ===== BLE: real Web Bluetooth =====
+      class WebBluetoothService {
+        constructor() { this.conns = new Map(); this.disconnectCb = null; }
+        isSupported() { return typeof navigator !== "undefined" && !!navigator.bluetooth; }
+        async requestDevice() {
+          const device = await navigator.bluetooth.requestDevice({
+            filters: [{ services: [SERVICE_UUID] }],
+          });
+          const id = device.id;
+          const onDrop = () => { this.conns.delete(id); if (this.disconnectCb) this.disconnectCb(id); };
+          const conn = await this.openConnection(device, onDrop);
+          this.conns.set(id, conn);
+          device.addEventListener("gattserverdisconnected", onDrop);
+          return { id, name: device.name ?? "Vibration device" };
+        }
+        async openConnection(device, onDrop) {
+          if (!device.gatt) throw new Error("GATT not available on this device");
+          const server = await device.gatt.connect();
+          const service = await server.getPrimaryService(SERVICE_UUID);
+          const [power, freq] = await Promise.all([
+            service.getCharacteristic(POWER_CHAR_UUID),
+            service.getCharacteristic(FREQ_CHAR_UUID),
+          ]);
+          return { device, power, freq, onDrop };
+        }
+        get(id) {
+          const c = this.conns.get(id);
+          if (!c) throw new Error(`device ${id} not connected`);
+          return c;
+        }
+        async setPower(id, on) { await this.get(id).power.writeValue(encodePower(on)); }
+        async setFrequency(id, hz) { await this.get(id).freq.writeValue(encodeFrequency(hz)); }
+        async disconnect(id) {
+          const conn = this.conns.get(id);
+          if (!conn) return;
+          conn.device.removeEventListener("gattserverdisconnected", conn.onDrop);
+          if (conn.device.gatt) conn.device.gatt.disconnect();
+          this.conns.delete(id);
+        }
+        onDisconnect(cb) { this.disconnectCb = cb; }
+      }
+
+      // ===== Safe DOM helper (no innerHTML — names are untrusted) =====
+      function h(tag, props = {}, children = []) {
+        const el = document.createElement(tag);
+        for (const [k, v] of Object.entries(props)) {
+          if (k.startsWith("on") && typeof v === "function") {
+            el.addEventListener(k.slice(2).toLowerCase(), v);
+          } else if (typeof v === "boolean") {
+            if (v) el.setAttribute(k, "");
+          } else {
+            el.setAttribute(k, String(v));
+          }
+        }
+        for (const c of children) el.append(typeof c === "string" ? document.createTextNode(c) : c);
+        return el;
+      }
+      function clear(root) { root.replaceChildren(); }
+
+      // ===== Connect view =====
+      function renderConnectView(root, { store, ble, onAdded }) {
+        const atLimit = store.get().devices.length >= MAX_DEVICES;
+        const error = h("p", { class: "hint", "data-role": "error" });
+        const btn = h(
+          "button",
+          {
+            "data-action": "add",
+            disabled: atLimit,
+            onClick: async () => {
+              error.textContent = "";
+              try {
+                const dev = await ble.requestDevice();
+                store.addDevice(dev.id, dev.name);
+                onAdded(dev.id);
+              } catch (e) {
+                error.textContent = (e && e.message) || "Could not connect";
+              }
+            },
+          },
+          [atLimit ? "4 devices connected" : "+ Add device"],
+        );
+        clear(root);
+        root.append(h("section", { class: "connect" }, [btn, error]));
+      }
+
+      // ===== Control view =====
+      function rangeInput(control, min, max, value, onInput) {
+        return h("input", {
+          type: "range", "data-control": control, min, max, value,
+          onInput: (e) => onInput(Number(e.target.value)),
+        });
+      }
+      function checkbox(control, checked, disabled, onChange) {
+        return h("input", {
+          type: "checkbox", "data-control": control, checked, disabled,
+          onChange: (e) => onChange(e.target.checked),
+        });
+      }
+      function followIds(store) {
+        return store.get().devices.filter((d) => d.mode === "follow").map((d) => d.id);
+      }
+      function globalBar(store, ble) {
+        const g = store.get().global;
+        return h("section", { "data-role": "global", class: "global-bar" }, [
+          h("h2", {}, ["All devices"]),
+          h("label", {}, ["Power", checkbox("power", g.power, false, (v) => {
+            store.setGlobal({ power: v });
+            for (const id of followIds(store)) ble.setPower(id, v);
+          })]),
+          h("label", {}, ["Frequency", rangeInput("frequency", FREQ_MIN, FREQ_MAX, g.frequency, (v) => {
+            store.setGlobal({ frequency: v });
+            for (const id of followIds(store)) ble.setFrequency(id, v);
+          })]),
+        ]);
+      }
+      function deviceCard(d, store, ble, rerender) {
+        const id = d.id;
+        const s = resolveSettings(store.get(), id);
+        const disabled = d.mode === "follow";
+        return h("article", { "data-role": "device-card", "data-id": id }, [
+          h("header", {}, [d.name]),
+          h("label", {}, ["Custom", checkbox("mode", d.mode === "custom", false, (v) => {
+            store.setDeviceMode(id, v ? "custom" : "follow");
+            if (!v) pushSettings(ble, id, resolveSettings(store.get(), id));
+            rerender();
+          })]),
+          h("label", {}, ["Power", checkbox("power", s.power, disabled, (v) => {
+            store.setDeviceCustom(id, { power: v });
+            ble.setPower(id, v);
+          })]),
+          h("label", {}, ["Frequency", rangeInput("frequency", FREQ_MIN, FREQ_MAX, s.frequency, (v) => {
+            store.setDeviceCustom(id, { frequency: v });
+            ble.setFrequency(id, v);
+          })]),
+          h("button", { "data-control": "remove", onClick: () => {
+            ble.disconnect(id);
+            store.removeDevice(id);
+            rerender();
+          } }, ["Remove"]),
+        ]);
+      }
+      function renderControlView(root, opts) {
+        const { store, ble } = opts;
+        const rerender = () => renderControlView(root, opts);
+        clear(root);
+        root.append(globalBar(store, ble));
+        const cards = h("section", { class: "cards" });
+        for (const d of store.get().devices) cards.append(deviceCard(d, store, ble, rerender));
+        root.append(cards);
+      }
+
+      // ===== Bootstrap =====
+      const app = document.getElementById("app");
+      const useFake = new URLSearchParams(location.search).has("fake");
+      const ble = useFake ? new FakeBleService() : new WebBluetoothService();
+
+      if (!ble.isSupported()) {
+        clear(app);
+        app.append(
+          h("div", { class: "unsupported" }, [
+            h("h1", {}, ["Bluetooth not available in this browser"]),
+            h("p", {}, ["On Android or desktop, open this page in Chrome or Edge."]),
+            h("p", {}, ["On iPhone or iPad, install the free Bluefy browser, then open this page inside it."]),
+          ]),
+        );
+      } else {
+        const store = new AppStore();
+        const connectRoot = document.createElement("div");
+        const controlRoot = document.createElement("div");
+        app.append(connectRoot, controlRoot);
+        const renderAll = () => {
+          renderConnectView(connectRoot, { store, ble, onAdded: () => renderAll() });
+          renderControlView(controlRoot, { store, ble });
+        };
+        ble.onDisconnect((id) => { store.removeDevice(id); renderAll(); });
+        renderAll();
+      }
+
+      // Offline cache (only when served over http/https; skipped on file://)
+      if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+        navigator.serviceWorker.register("./sw.js").catch(() => {});
+      }
+    </script>
   </body>
 </html>
