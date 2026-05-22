@@ -22,6 +22,16 @@ npm run build
 `http://localhost:5173/?fake` runs the UI against an in-memory fake BLE service,
 so you can develop the interface with no devices present.
 
+### Supply-chain hardening
+
+`.npmrc` sets `min-release-age=7`, so `npm install` only resolves dependency
+versions that have been published for **more than 7 days** — a buffer against
+freshly-published, compromised releases. The committed `package-lock.json` was
+generated under this floor, so installs are both reproducible and aged. Requires
+npm >= 11.6. When adding or upgrading a dependency, you may need a version that
+has aged past the window; pin to one that has, or temporarily override with
+`npm install <pkg> --min-release-age=0` (not recommended).
+
 ## Host (free)
 
 Deploy the `dist/` folder to GitHub Pages or Cloudflare Pages (static, no server).
