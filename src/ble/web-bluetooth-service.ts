@@ -9,6 +9,7 @@ interface Conn {
   power: BluetoothRemoteGATTCharacteristic;
   freq: BluetoothRemoteGATTCharacteristic;
   intensity: BluetoothRemoteGATTCharacteristic;
+  onDrop: () => void;
 }
 
 export class WebBluetoothService implements BleService {
@@ -23,25 +24,27 @@ export class WebBluetoothService implements BleService {
     const device = await navigator.bluetooth.requestDevice({
       filters: [{ services: [SERVICE_UUID] }],
     });
-    const conn = await this.openConnection(device);
     const id = device.id;
-    this.conns.set(id, conn);
-    device.addEventListener("gattserverdisconnected", () => {
+    const onDrop = () => {
       this.conns.delete(id);
       this.disconnectCb?.(id);
-    });
+    };
+    const conn = await this.openConnection(device, onDrop);
+    this.conns.set(id, conn);
+    device.addEventListener("gattserverdisconnected", onDrop);
     return { id, name: device.name ?? "Vibration device" };
   }
 
-  private async openConnection(device: BluetoothDevice): Promise<Conn> {
-    const server = await device.gatt!.connect();
+  private async openConnection(device: BluetoothDevice, onDrop: () => void): Promise<Conn> {
+    if (!device.gatt) throw new Error("GATT not available on this device");
+    const server = await device.gatt.connect();
     const service = await server.getPrimaryService(SERVICE_UUID);
     const [power, freq, intensity] = await Promise.all([
       service.getCharacteristic(POWER_CHAR_UUID),
       service.getCharacteristic(FREQ_CHAR_UUID),
       service.getCharacteristic(INTENSITY_CHAR_UUID),
     ]);
-    return { device, power, freq, intensity };
+    return { device, power, freq, intensity, onDrop };
   }
 
   private get(id: string): Conn {
@@ -60,7 +63,12 @@ export class WebBluetoothService implements BleService {
     await this.get(id).intensity.writeValue(encodeIntensity(pct));
   }
   async disconnect(id: string): Promise<void> {
-    this.conns.get(id)?.device.gatt?.disconnect();
+    const conn = this.conns.get(id);
+    if (!conn) return;
+    // remove the drop listener first so an intentional disconnect doesn't
+    // fire the onDisconnect callback (that is reserved for real peripheral drops)
+    conn.device.removeEventListener("gattserverdisconnected", conn.onDrop);
+    conn.device.gatt?.disconnect();
     this.conns.delete(id);
   }
   onDisconnect(cb: (id: string) => void): void {
