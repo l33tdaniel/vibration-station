@@ -315,6 +315,56 @@
         return form;
       }
 
+      // ===== Device Picker Modal =====
+      function createDevicePickerModal(devices, onConfirm, onCancel) {
+        const selected = new Set();
+        const modal = h("div", { class: "modal-overlay", "data-role": "device-picker-modal" }, [
+          h("div", { class: "modal-content" }, [
+            h("div", { class: "modal-header" }, ["Select Devices"]),
+            h("div", { class: "device-picker" }, devices.map((d) =>
+              h("label", {}, [
+                h("input", {
+                  type: "checkbox",
+                  checked: false,
+                  onChange: (e) => {
+                    if (e.target.checked) selected.add(d.id);
+                    else selected.delete(d.id);
+                  },
+                }),
+                ` ${d.name}`,
+              ])
+            )),
+            h("div", { class: "form-actions" }, [
+              h("button", {
+                onClick: () => {
+                  if (selected.size === 0) {
+                    alert("Select at least one device");
+                    return;
+                  }
+                  onConfirm(Array.from(selected));
+                  modal.remove();
+                },
+              }, ["Start"]),
+              h("button", {
+                onClick: () => {
+                  onCancel();
+                  modal.remove();
+                },
+              }, ["Cancel"]),
+            ]),
+          ]),
+        ]);
+
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) {
+            onCancel();
+            modal.remove();
+          }
+        });
+
+        return modal;
+      }
+
       // ===== Profiles View =====
       function renderProfilesSection(root, { store, profileStore, ble, onStartProfile, onEditProfile, onDeleteProfile, onCreateProfile }) {
         clear(root);
