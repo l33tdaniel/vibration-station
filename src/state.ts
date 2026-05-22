@@ -39,7 +39,8 @@ export class AppStore {
   private listeners: Array<() => void> = [];
 
   get(): AppState {
-    return this.state;
+    // shallow copy so consumers (e.g. UI) can't mutate state behind the store
+    return { global: { ...this.state.global }, devices: [...this.state.devices] };
   }
   subscribe(fn: () => void): void {
     this.listeners.push(fn);
@@ -66,12 +67,14 @@ export class AppStore {
   }
   setDeviceMode(id: string, mode: DeviceMode): void {
     const d = this.find(id);
-    if (d) d.mode = mode;
+    if (!d) return;
+    d.mode = mode;
     this.emit();
   }
   setDeviceCustom(id: string, p: Partial<Settings>): void {
     const d = this.find(id);
-    if (d) d.custom = { ...d.custom, ...p };
+    if (!d) return;
+    d.custom = { ...d.custom, ...p };
     this.emit();
   }
 }
