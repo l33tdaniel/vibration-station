@@ -71,6 +71,68 @@
       }
 
       // ===== State =====
+      // ===== ProfileStore (localStorage) =====
+      class ProfileStore {
+        constructor() {
+          this.profiles = [];
+          this.load();
+        }
+        load() {
+          try {
+            const data = localStorage.getItem("vibration-profiles");
+            this.profiles = data ? JSON.parse(data) : [];
+          } catch (e) {
+            console.error("Failed to load profiles:", e);
+            this.profiles = [];
+          }
+        }
+        save() {
+          try {
+            localStorage.setItem("vibration-profiles", JSON.stringify(this.profiles));
+          } catch (e) {
+            console.error("Failed to save profiles:", e);
+            return false;
+          }
+          return true;
+        }
+        create(name, frequency, duration) {
+          if (!name || frequency < 80 || frequency > 160 || duration < 1 || duration > 60) {
+            return null;
+          }
+          const profile = {
+            id: String(Date.now()),
+            name,
+            frequency: Math.round(frequency),
+            duration: Math.round(duration),
+          };
+          this.profiles.push(profile);
+          this.save();
+          return profile;
+        }
+        update(id, name, frequency, duration) {
+          const p = this.profiles.find((x) => x.id === id);
+          if (!p) return null;
+          if (!name || frequency < 80 || frequency > 160 || duration < 1 || duration > 60) {
+            return null;
+          }
+          p.name = name;
+          p.frequency = Math.round(frequency);
+          p.duration = Math.round(duration);
+          this.save();
+          return p;
+        }
+        delete(id) {
+          this.profiles = this.profiles.filter((p) => p.id !== id);
+          this.save();
+        }
+        get(id) {
+          return this.profiles.find((p) => p.id === id);
+        }
+        getAll() {
+          return [...this.profiles];
+        }
+      }
+
       const DEFAULT_GLOBAL = { power: false, frequency: 120 };
 
       function resolveSettings(state, id) {
