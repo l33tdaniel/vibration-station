@@ -22,7 +22,9 @@ describe("encoders", () => {
   });
   it("encodes frequency as little-endian uint16, clamped", () => {
     expect(Array.from(encodeFrequency(258))).toEqual([2, 1]); // 258 = 0x0102
-    expect(Array.from(encodeFrequency(FREQ_MAX + 1000)).length).toBe(2);
+    expect(Array.from(encodeFrequency(FREQ_MAX + 1000))).toEqual(
+      Array.from(encodeFrequency(FREQ_MAX)),
+    ); // over-max clamps to FREQ_MAX
     expect(Array.from(encodeFrequency(FREQ_MIN - 5))).toEqual([0, 0]);
   });
   it("encodes intensity as one clamped byte", () => {
