@@ -315,6 +315,55 @@
         return form;
       }
 
+      // ===== Profiles View =====
+      function renderProfilesSection(root, { store, profileStore, ble, onStartProfile, onEditProfile, onDeleteProfile, onCreateProfile }) {
+        clear(root);
+        const section = h("section", { class: "profiles-section" }, [
+          h("h2", {}, ["Profiles"]),
+        ]);
+
+        const profiles = profileStore.getAll();
+        if (profiles.length === 0) {
+          section.append(h("p", {}, ["No profiles yet. Create one to get started."]));
+        } else {
+          for (const p of profiles) {
+            const card = h("div", { class: "profile-card", "data-id": p.id }, [
+              h("div", { class: "profile-info" }, [
+                h("div", { class: "profile-name" }, [p.name]),
+                h("div", { class: "profile-meta" }, [`${p.frequency} Hz, ${p.duration} min`]),
+              ]),
+              h("div", { class: "profile-actions" }, [
+                h("button", {
+                  "data-action": "start",
+                  onClick: () => onStartProfile(p.id),
+                }, ["Start"]),
+                h("button", {
+                  "data-action": "edit",
+                  onClick: () => onEditProfile(p.id),
+                }, ["Edit"]),
+                h("button", {
+                  "data-action": "delete",
+                  onClick: () => {
+                    if (confirm(`Delete profile "${p.name}"?`)) {
+                      onDeleteProfile(p.id);
+                    }
+                  },
+                }, ["Delete"]),
+              ]),
+            ]);
+            section.append(card);
+          }
+        }
+
+        const createBtn = h("button", {
+          "data-action": "create",
+          onClick: onCreateProfile,
+        }, ["+ New Profile"]);
+        section.append(createBtn);
+
+        root.append(section);
+      }
+
       // ===== Connect view =====
       function renderConnectView(root, { store, ble, onAdded }) {
         const atLimit = store.get().devices.length >= MAX_DEVICES;
