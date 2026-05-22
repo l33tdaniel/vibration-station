@@ -140,3 +140,31 @@ otherwise show a one-tap "Reconnect" per device. Optimized for caregiver speed.
 - Battery/status reporting.
 - Tight time-synchronized pulsing (loose timing only).
 - Published native app store distribution.
+- Intensity / amplitude control (motor is frequency-only via `tone()` in v1).
+
+## Revision — firmware-aligned contract (2026-05-22)
+
+After reviewing the actual firmware (`Bluetooth_Board_Code.ino`), the GATT
+contract is revised. This section supersedes the GATT and control details above.
+
+**Current firmware (reference, to be upgraded):** ArduinoBLE, standard service
+`180F` with one `BLEIntCharacteristic` `2A19` (signed 32-bit int); writing `0`
+stops the motor, `80–160` runs `tone()` at that Hz. Name `"Vibration Device 2"`.
+
+**Decisions:**
+1. The firmware team will upgrade the sketch to expose the custom 128-bit service
+   with **separate power and frequency characteristics** (matching the app's design).
+2. **Intensity is dropped for v1.** The motor is frequency-only; revisit when
+   firmware adds PWM duty-cycle amplitude control.
+3. **Frequency range is 80–160 Hz** (the motor's working band).
+4. On/off is a dedicated power characteristic (uint8 0/1); off no longer means
+   "write 0 to frequency".
+
+**Revised GATT contract (firmware target):**
+
+| Characteristic | Type  | Value                          |
+|----------------|-------|--------------------------------|
+| Power          | write | uint8 — 0 / 1                  |
+| Frequency      | write | uint16 LE — Hz, range 80–160   |
+
+App `Settings` therefore carry `{ power, frequency }` only — no `intensity`.

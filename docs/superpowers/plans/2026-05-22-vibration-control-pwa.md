@@ -1158,4 +1158,19 @@ git commit -m "chore: set firmware UUIDs and record hardware verification result
 - **Type consistency:** `BleService` methods, `Settings`/`DeviceState`/`AppState`, `AppStore` method names, `resolveSettings`/`pushSettings`, and the `h()`/`clear()` helpers are used identically across Tasks 3–9.
 - **Known limitation carried forward:** frequency/intensity ranges are placeholders until Task 11 Step 1 sets them from firmware.
 - **Note:** `DeviceStore` (Task 4) persists pairings to localStorage; full silent-reconnect on launch depends on browser support and is validated in Task 11 — wiring `DeviceStore` into `main.ts` reconnect flow is deferred until that behavior is confirmed, to avoid building re-pair UX against unverified assumptions.
+
+## Revision — firmware-aligned contract (2026-05-22)
+
+After reviewing `Bluetooth_Board_Code.ino`, the contract changed (see the spec's
+revision section). Net effect on this plan:
+
+- **No intensity.** Remove `INTENSITY_*`, `encodeIntensity`, `INTENSITY_CHAR_UUID`,
+  `setIntensity`, and all intensity UI. `Settings = { power, frequency }`.
+- **Frequency range 80–160 Hz.** `FREQ_MIN = 80`, `FREQ_MAX = 160`. Default
+  global `{ power: false, frequency: 120 }`.
+- **Two write characteristics** (power, frequency) on the custom service; firmware
+  will be upgraded to expose them.
+
+Tasks 2/3/5/6 (already built) are amended by a refactor commit to match. Tasks
+7–9 (UI) build power-toggle + frequency-slider controls only — no intensity slider.
 ```
