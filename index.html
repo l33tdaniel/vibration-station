@@ -245,6 +245,76 @@
       }
       function clear(root) { root.replaceChildren(); }
 
+      // ===== Profile Form =====
+      function createProfileForm(initialData = null, onSave, onCancel) {
+        const isEdit = !!initialData;
+        const form = h("div", { class: "form-group" }, [
+          h("div", { class: "form-field" }, [
+            h("label", {}, ["Profile Name"]),
+            h("input", {
+              type: "text",
+              value: initialData?.name || "",
+              "data-field": "name",
+              "data-role": "profile-name",
+              onInput: (e) => validateForm(),
+            }),
+          ]),
+          h("div", { class: "form-field" }, [
+            h("label", {}, ["Frequency (Hz)"]),
+            h("input", {
+              type: "number",
+              min: "80",
+              max: "160",
+              value: initialData?.frequency || "120",
+              "data-field": "frequency",
+              "data-role": "profile-frequency",
+              onInput: (e) => validateForm(),
+            }),
+          ]),
+          h("div", { class: "form-field" }, [
+            h("label", {}, ["Duration (minutes)"]),
+            h("input", {
+              type: "number",
+              min: "1",
+              max: "60",
+              value: initialData?.duration || "5",
+              "data-field": "duration",
+              "data-role": "profile-duration",
+              onInput: (e) => validateForm(),
+            }),
+          ]),
+          h("div", { "data-role": "form-error", class: "error-message" }),
+          h("div", { class: "form-actions" }, [
+            h("button", {
+              "data-action": "save",
+              onClick: () => {
+                const name = form.querySelector('[data-field="name"]').value;
+                const freq = Number(form.querySelector('[data-field="frequency"]').value);
+                const dur = Number(form.querySelector('[data-field="duration"]').value);
+                if (!name || freq < 80 || freq > 160 || dur < 1 || dur > 60) {
+                  form.querySelector('[data-role="form-error"]').textContent = "Invalid input";
+                  return;
+                }
+                onSave({ name, frequency: freq, duration: dur });
+              },
+            }, [isEdit ? "Update" : "Create"]),
+            h("button", { onClick: onCancel }, ["Cancel"]),
+          ]),
+        ]);
+        const validateForm = () => {
+          const name = form.querySelector('[data-field="name"]').value;
+          const freq = Number(form.querySelector('[data-field="frequency"]').value);
+          const dur = Number(form.querySelector('[data-field="duration"]').value);
+          const error = form.querySelector('[data-role="form-error"]');
+          let msg = "";
+          if (!name) msg = "Name required";
+          else if (freq < 80 || freq > 160) msg = "Frequency 80–160 Hz";
+          else if (dur < 1 || dur > 60) msg = "Duration 1–60 min";
+          error.textContent = msg;
+        };
+        return form;
+      }
+
       // ===== Connect view =====
       function renderConnectView(root, { store, ble, onAdded }) {
         const atLimit = store.get().devices.length >= MAX_DEVICES;
