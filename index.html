@@ -8,16 +8,38 @@
       :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
       body { margin: 0; padding: 1rem; max-width: 680px; margin-inline: auto; color: #111; }
       h2 { font-size: 1.4rem; margin: 0 0 .75rem; }
-      button { font-size: 1.25rem; padding: .8rem 1.25rem; border-radius: .6rem; border: 1px solid #888; background: #f4f4f5; cursor: pointer; }
+      button { font-size: 1.25rem; padding: 1rem 1.5rem; border-radius: .6rem; border: 1px solid #888; background: #f4f4f5; cursor: pointer; min-height: 44px; display: flex; align-items: center; justify-content: center; }
       button:disabled { opacity: .5; cursor: default; }
-      label { display: flex; align-items: center; gap: .75rem; font-size: 1.2rem; margin: .9rem 0; }
-      input[type="range"] { flex: 1; height: 2.2rem; }
-      input[type="checkbox"] { width: 1.7rem; height: 1.7rem; }
-      .global-bar, .cards article { border: 1px solid #ccc; border-radius: .8rem; padding: 1rem 1.2rem; margin: 1rem 0; }
-      .cards article header { font-weight: 600; font-size: 1.25rem; margin-bottom: .25rem; }
+      label { display: flex; align-items: center; gap: .75rem; font-size: 1.3rem; margin: 1rem 0; }
+      input[type="range"] { flex: 1; height: 44px; }
+      input[type="checkbox"] { width: 2rem; height: 2rem; }
+      .global-bar, .cards article { border: 1px solid #ccc; border-radius: .8rem; padding: 1.5rem; margin: 1rem 0; }
+      .cards article header { font-weight: 600; font-size: 1.25rem; margin-bottom: .5rem; }
       .hint { color: #b00020; min-height: 1.2em; }
       .unsupported { font-size: 1.2rem; line-height: 1.55; }
       .version { color: #999; font-size: .85rem; margin-top: 2rem; }
+      .profiles-section { margin: 1rem 0; }
+      .profile-card { border: 1px solid #ccc; border-radius: .8rem; padding: 1.5rem; margin: 1rem 0; display: flex; justify-content: space-between; align-items: center; }
+      .profile-info { flex: 1; }
+      .profile-name { font-weight: 600; font-size: 1.25rem; }
+      .profile-meta { font-size: 1rem; color: #666; margin-top: .5rem; }
+      .profile-actions { display: flex; gap: .5rem; }
+      .profile-actions button { padding: .6rem 1rem; font-size: 1rem; min-height: auto; }
+      .timer-display { text-align: center; padding: 2rem 1.5rem; }
+      .timer-countdown { font-size: 2.5rem; font-family: monospace; font-weight: bold; margin: 1rem 0; }
+      .timer-devices { font-size: 1rem; color: #666; margin: 1rem 0; }
+      .timer-stop { min-height: 50px; font-size: 1.5rem; background: #ff6b6b; color: white; }
+      .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+      .modal-content { background: white; border-radius: 1rem; padding: 2rem; max-width: 90%; max-height: 90vh; overflow-y: auto; }
+      .modal-header { font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem; }
+      .device-picker { display: flex; flex-direction: column; gap: 1rem; }
+      .device-picker label { margin: .5rem 0; }
+      .form-field { display: flex; flex-direction: column; gap: .5rem; margin: 1rem 0; }
+      .form-field label { font-size: 1.2rem; font-weight: 500; }
+      .form-field input[type="text"], .form-field input[type="number"] { padding: .75rem; font-size: 1.1rem; border: 1px solid #ccc; border-radius: .5rem; }
+      .form-actions { display: flex; gap: 1rem; margin-top: 1.5rem; }
+      .form-actions button { flex: 1; }
+      .error-message { color: #b00020; font-size: 1rem; margin-top: .25rem; }
     </style>
   </head>
   <body>
