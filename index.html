@@ -5,19 +5,57 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Vibration Station</title>
     <style>
-      :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-      body { margin: 0; padding: 1rem; max-width: 680px; margin-inline: auto; color: #111; }
-      h2 { font-size: 1.4rem; margin: 0 0 .75rem; }
-      button { font-size: 1.25rem; padding: .8rem 1.25rem; border-radius: .6rem; border: 1px solid #888; background: #f4f4f5; cursor: pointer; }
-      button:disabled { opacity: .5; cursor: default; }
-      label { display: flex; align-items: center; gap: .75rem; font-size: 1.2rem; margin: .9rem 0; }
-      input[type="range"] { flex: 1; height: 2.2rem; }
-      input[type="checkbox"] { width: 1.7rem; height: 1.7rem; }
-      .global-bar, .cards article { border: 1px solid #ccc; border-radius: .8rem; padding: 1rem 1.2rem; margin: 1rem 0; }
-      .cards article header { font-weight: 600; font-size: 1.25rem; margin-bottom: .25rem; }
+      :root {
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        --ground: #eef4f9; --card: #fff; --border: #dbe6ee;
+        --accent: #0f7aa3; --header: #0f5e7a;
+        --label: #16384a; --muted: #6b8595;
+      }
+      body { margin: 0; padding: 1rem; max-width: 480px; margin-inline: auto; color: var(--label); background: var(--ground); }
+      .app-title { color: var(--header); font-size: 1.5rem; font-weight: 700; margin: .25rem .25rem 1rem; }
+      h2 { font-size: .9rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--header); margin: 0 0 .9rem; }
+      button { font-size: 1rem; font-weight: 600; padding: .7rem 1.1rem; border-radius: .55rem; border: none; background: var(--accent); color: #fff; cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+      button:disabled { opacity: .45; cursor: default; }
+      label { display: flex; align-items: center; gap: .75rem; font-size: 1rem; font-weight: 600; color: var(--label); margin: .9rem 0; }
+      input[type="range"] { flex: 1; height: 44px; accent-color: var(--accent); }
+      input[type="checkbox"] { width: 1.8rem; height: 1.8rem; accent-color: var(--accent); }
+      .value-readout { font-size: .95rem; font-weight: 700; color: var(--accent); min-width: 62px; text-align: right; white-space: nowrap; }
+      .value-readout input { width: 3.4em; font-size: .95rem; font-weight: 700; color: var(--accent); text-align: right; border: 1px solid var(--border); border-radius: .4rem; padding: .25rem; min-height: 36px; -moz-appearance: textfield; }
+      .global-bar, .cards article { background: var(--card); border: 1px solid var(--border); border-radius: .9rem; padding: 1.25rem; margin: .85rem 0; }
+      .cards article header { display: flex; align-items: center; justify-content: space-between; font-weight: 700; font-size: 1.15rem; color: var(--label); margin-bottom: .5rem; }
       .hint { color: #b00020; min-height: 1.2em; }
-      .unsupported { font-size: 1.2rem; line-height: 1.55; }
-      .version { color: #999; font-size: .85rem; margin-top: 2rem; }
+      .unsupported { font-size: 1.1rem; line-height: 1.55; }
+      .version { color: var(--muted); font-size: .8rem; margin-top: 2rem; text-align: center; }
+      .profiles-section { margin: .85rem 0; }
+      .profile-card { background: var(--card); border: 1px solid var(--border); border-radius: .9rem; padding: 1.1rem 1.25rem; margin: .85rem 0; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+      .profile-info { flex: 1; }
+      .profile-name { font-weight: 700; font-size: 1.15rem; color: var(--label); }
+      .profile-meta { display: inline-block; font-size: .85rem; font-weight: 600; color: var(--header); background: #e3f3f9; padding: .25rem .7rem; border-radius: 1rem; margin-top: .4rem; }
+      .profile-actions { display: flex; flex-direction: column; gap: .4rem; align-items: stretch; }
+      .profile-actions [data-action="start"] { min-width: 104px; }
+      .profile-subactions { display: flex; gap: .25rem; justify-content: flex-end; }
+      .profile-actions .secondary { background: none; color: var(--muted); padding: .35rem .55rem; min-height: 40px; font-size: .9rem; }
+      .add-btn { width: 100%; background: #f7fbfd; color: var(--header); border: 2px dashed #b8d3e1; font-weight: 600; margin: .6rem 0; }
+      .add-btn:disabled { border-style: solid; }
+      .connect { margin: 0; }
+      .connect .hint:empty { min-height: 0; }
+      .battery-pill { font-size: .85rem; font-weight: 700; color: #1d7a45; background: #e6f5ec; padding: .25rem .7rem; border-radius: 1rem; }
+      .timer-display { text-align: center; padding: 2rem 1.5rem; background: var(--card); border: 1px solid var(--border); border-radius: .9rem; }
+      .timer-countdown { font-size: 2.5rem; font-family: monospace; font-weight: bold; color: var(--accent); margin: 1rem 0; }
+      .timer-devices { font-size: 1rem; color: var(--muted); margin: 1rem 0; }
+      .timer-stop { min-height: 50px; font-size: 1.25rem; background: #d64545; color: #fff; }
+      .modal-overlay { position: fixed; inset: 0; background: rgba(15,40,55,.45); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+      .modal-content { background: var(--card); border-radius: 1rem; padding: 1.75rem; max-width: 90%; max-height: 90vh; overflow-y: auto; }
+      .modal-header { font-size: 1.25rem; font-weight: 700; color: var(--header); margin-bottom: 1rem; }
+      .device-picker { display: flex; flex-direction: column; gap: 1rem; }
+      .device-picker label { margin: .5rem 0; }
+      .form-field { display: flex; flex-direction: column; gap: .4rem; margin: 1rem 0; }
+      .form-field label { font-size: 1rem; font-weight: 600; }
+      .form-field input[type="text"], .form-field input[type="number"] { padding: .7rem; font-size: 1rem; border: 1px solid var(--border); border-radius: .5rem; }
+      .form-actions { display: flex; gap: 1rem; margin-top: 1.5rem; }
+      .form-actions button { flex: 1; }
+      .form-actions button.cancel { background: #eef4f9; color: var(--header); }
+      .error-message { color: #b00020; font-size: .95rem; margin-top: .25rem; }
     </style>
   </head>
   <body>
@@ -25,15 +63,18 @@
 
     <script type="module">
       // ===== Device contract (matches Bluetooth_Board_Code.ino) =====
-      // Standard Battery service 180F with one int characteristic 2A19.
-      // Value is a 4-byte little-endian int: 0 = motor off, 80-160 = tone (Hz).
-      const SERVICE_UUID = "0000180f-0000-1000-8000-00805f9b34fb"; // 0x180F
-      const MOTOR_CHAR_UUID = "00002a19-0000-1000-8000-00805f9b34fb"; // 0x2A19
+      // Battery service 180F / char 2A19: uint8 0-100 % (read+notify) — real battery.
+      // Motor service 6e500001.. / char 6e500002..: int (read+write).
+      //   Value is a 4-byte little-endian int: 0 = motor off, 80-160 = intensity.
+      const BATTERY_SERVICE_UUID = "0000180f-0000-1000-8000-00805f9b34fb";
+      const BATTERY_LEVEL_CHAR_UUID = "00002a19-0000-1000-8000-00805f9b34fb";
+      const MOTOR_SERVICE_UUID = "6e500001-b5a3-f393-e0a9-e50e24dcca9e";
+      const MOTOR_CHAR_UUID = "6e500002-b5a3-f393-e0a9-e50e24dcca9e";
       const DEVICE_NAME_PREFIX = "Vibration Device";
       const FREQ_MIN = 80;
       const FREQ_MAX = 160;
       const MAX_DEVICES = 4;
-      const VERSION = "2026-05-22.2"; // bump on each deploy; shown at page bottom
+      const VERSION = "2026-05-23.4"; // bump on each deploy; shown at page bottom
 
       // ===== Encoding =====
       function clamp(value, min, max) {
@@ -49,6 +90,106 @@
       }
 
       // ===== State =====
+      // ===== ProfileStore (localStorage) =====
+      class ProfileStore {
+        constructor() {
+          this.profiles = [];
+          this.load();
+        }
+        load() {
+          try {
+            const data = localStorage.getItem("vibration-profiles");
+            this.profiles = data ? JSON.parse(data) : [];
+          } catch (e) {
+            console.error("Failed to load profiles:", e);
+            this.profiles = [];
+          }
+        }
+        save() {
+          try {
+            localStorage.setItem("vibration-profiles", JSON.stringify(this.profiles));
+          } catch (e) {
+            console.error("Failed to save profiles:", e);
+            return false;
+          }
+          return true;
+        }
+        create(name, frequency, duration) {
+          if (!name || frequency < 80 || frequency > 160 || duration < 1 || duration > 60) {
+            return null;
+          }
+          const profile = {
+            id: String(Date.now()),
+            name,
+            frequency: Math.round(frequency),
+            duration: Math.round(duration),
+          };
+          this.profiles.push(profile);
+          this.save();
+          return profile;
+        }
+        update(id, name, frequency, duration) {
+          const p = this.profiles.find((x) => x.id === id);
+          if (!p) return null;
+          if (!name || frequency < 80 || frequency > 160 || duration < 1 || duration > 60) {
+            return null;
+          }
+          p.name = name;
+          p.frequency = Math.round(frequency);
+          p.duration = Math.round(duration);
+          this.save();
+          return p;
+        }
+        delete(id) {
+          this.profiles = this.profiles.filter((p) => p.id !== id);
+          this.save();
+        }
+        get(id) {
+          return this.profiles.find((p) => p.id === id);
+        }
+        getAll() {
+          return [...this.profiles];
+        }
+      }
+
+      // ===== Timer =====
+      class TimerState {
+        constructor() {
+          this.isRunning = false;
+          this.secondsLeft = 0;
+          this.deviceIds = [];
+          this.profileId = null;
+          this.intervalId = null;
+        }
+        start(profile, deviceIds, onTick, onComplete) {
+          this.isRunning = true;
+          this.secondsLeft = profile.duration * 60;
+          this.deviceIds = deviceIds;
+          this.profileId = profile.id;
+          this.intervalId = setInterval(() => {
+            this.secondsLeft -= 0.1; // 100ms tick
+            onTick(this.secondsLeft);
+            if (this.secondsLeft <= 0) {
+              this.stop();
+              onComplete();
+            }
+          }, 100);
+        }
+        stop() {
+          this.isRunning = false;
+          if (this.intervalId) clearInterval(this.intervalId);
+          this.intervalId = null;
+          this.secondsLeft = 0;
+          this.deviceIds = [];
+          this.profileId = null;
+        }
+        formatTime(seconds) {
+          const mins = Math.floor(seconds / 60);
+          const secs = Math.floor(seconds % 60);
+          return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+        }
+      }
+
       const DEFAULT_GLOBAL = { power: false, frequency: 120 };
 
       function resolveSettings(state, id) {
@@ -75,7 +216,7 @@
         setGlobal(p) { this.state.global = { ...this.state.global, ...p }; this.emit(); }
         addDevice(id, name) {
           if (this.find(id)) return;
-          this.state.devices.push({ id, name, mode: "follow", custom: { ...this.state.global } });
+          this.state.devices.push({ id, name, mode: "follow", custom: { ...this.state.global }, battery: null });
           this.emit();
         }
         removeDevice(id) {
@@ -84,6 +225,7 @@
         }
         setDeviceMode(id, mode) { const d = this.find(id); if (!d) return; d.mode = mode; this.emit(); }
         setDeviceCustom(id, p) { const d = this.find(id); if (!d) return; d.custom = { ...d.custom, ...p }; this.emit(); }
+        setDeviceBattery(id, pct) { const d = this.find(id); if (!d) return; d.battery = pct; this.emit(); }
       }
 
       // ===== BLE: in-memory fake (used with ?fake) =====
@@ -93,8 +235,11 @@
         async requestDevice() {
           const n = ++this.counter;
           this.calls.push({ m: "requestDevice", args: [] });
-          return { id: `fake-${n}`, name: `Fake Device ${n}` };
+          const id = `fake-${n}`;
+          setTimeout(() => { if (this.batteryCb) this.batteryCb(id, 82); }, 50);
+          return { id, name: `Fake Device ${n}` };
         }
+        onBattery(cb) { this.batteryCb = cb; }
         async setPower(id, on) { this.calls.push({ m: "setPower", args: [id, on] }); }
         async setFrequency(id, hz) { this.calls.push({ m: "setFrequency", args: [id, hz] }); }
         async disconnect(id) { this.calls.push({ m: "disconnect", args: [id] }); }
@@ -108,23 +253,40 @@
         isSupported() { return typeof navigator !== "undefined" && !!navigator.bluetooth; }
         async requestDevice() {
           const device = await navigator.bluetooth.requestDevice({
-            filters: [{ services: [SERVICE_UUID] }, { namePrefix: DEVICE_NAME_PREFIX }],
-            optionalServices: [SERVICE_UUID],
+            filters: [{ services: [MOTOR_SERVICE_UUID] }, { namePrefix: DEVICE_NAME_PREFIX }],
+            optionalServices: [BATTERY_SERVICE_UUID, MOTOR_SERVICE_UUID],
           });
           const id = device.id;
           const onDrop = () => { this.conns.delete(id); if (this.disconnectCb) this.disconnectCb(id); };
           const conn = await this.openConnection(device, onDrop);
           this.conns.set(id, conn);
           device.addEventListener("gattserverdisconnected", onDrop);
+          this.startBattery(conn, id);
           return { id, name: device.name ?? "Vibration device" };
         }
         async openConnection(device, onDrop) {
           if (!device.gatt) throw new Error("GATT not available on this device");
           const server = await device.gatt.connect();
-          const service = await server.getPrimaryService(SERVICE_UUID);
-          const motor = await service.getCharacteristic(MOTOR_CHAR_UUID);
-          return { device, motor, onDrop, power: false, freq: 120 };
+          const motorService = await server.getPrimaryService(MOTOR_SERVICE_UUID);
+          const motor = await motorService.getCharacteristic(MOTOR_CHAR_UUID);
+          let battery = null;
+          try {
+            const battService = await server.getPrimaryService(BATTERY_SERVICE_UUID);
+            battery = await battService.getCharacteristic(BATTERY_LEVEL_CHAR_UUID);
+          } catch (e) { battery = null; } // older firmware without battery char
+          return { device, motor, battery, onDrop, power: false, freq: 120 };
         }
+        async startBattery(conn, id) {
+          if (!conn.battery) return;
+          try {
+            const v = await conn.battery.readValue();
+            if (this.batteryCb) this.batteryCb(id, v.getUint8(0));
+            await conn.battery.startNotifications();
+            conn.batteryHandler = (e) => { if (this.batteryCb) this.batteryCb(id, e.target.value.getUint8(0)); };
+            conn.battery.addEventListener("characteristicvaluechanged", conn.batteryHandler);
+          } catch (e) { console.warn("battery unavailable", e); }
+        }
+        onBattery(cb) { this.batteryCb = cb; }
         get(id) {
           const c = this.conns.get(id);
           if (!c) throw new Error(`device ${id} not connected`);
@@ -138,6 +300,7 @@
           const conn = this.conns.get(id);
           if (!conn) return;
           conn.device.removeEventListener("gattserverdisconnected", conn.onDrop);
+          if (conn.battery && conn.batteryHandler) conn.battery.removeEventListener("characteristicvaluechanged", conn.batteryHandler);
           if (conn.device.gatt) conn.device.gatt.disconnect();
           this.conns.delete(id);
         }
@@ -161,6 +324,194 @@
       }
       function clear(root) { root.replaceChildren(); }
 
+      // ===== Profile Form =====
+      function createProfileForm(initialData = null, onSave, onCancel) {
+        const isEdit = !!initialData;
+        const form = h("div", { class: "form-group" }, [
+          h("div", { class: "form-field" }, [
+            h("label", {}, ["Preset name"]),
+            h("input", {
+              type: "text",
+              value: initialData?.name || "",
+              "data-field": "name",
+              "data-role": "profile-name",
+              onInput: (e) => validateForm(),
+            }),
+          ]),
+          h("div", { class: "form-field" }, [
+            h("label", {}, ["Frequency (Hz)"]),
+            h("input", {
+              type: "number",
+              min: "80",
+              max: "160",
+              value: initialData?.frequency || "120",
+              "data-field": "frequency",
+              "data-role": "profile-frequency",
+              onInput: (e) => validateForm(),
+            }),
+          ]),
+          h("div", { class: "form-field" }, [
+            h("label", {}, ["Duration (minutes)"]),
+            h("input", {
+              type: "number",
+              min: "1",
+              max: "60",
+              value: initialData?.duration || "5",
+              "data-field": "duration",
+              "data-role": "profile-duration",
+              onInput: (e) => validateForm(),
+            }),
+          ]),
+          h("div", { "data-role": "form-error", class: "error-message" }),
+          h("div", { class: "form-actions" }, [
+            h("button", {
+              "data-action": "save",
+              onClick: () => {
+                const name = form.querySelector('[data-field="name"]').value;
+                const freq = Number(form.querySelector('[data-field="frequency"]').value);
+                const dur = Number(form.querySelector('[data-field="duration"]').value);
+                if (!name || freq < 80 || freq > 160 || dur < 1 || dur > 60) {
+                  form.querySelector('[data-role="form-error"]').textContent = "Invalid input";
+                  return;
+                }
+                onSave({ name, frequency: freq, duration: dur });
+              },
+            }, [isEdit ? "Update" : "Create"]),
+            h("button", { class: "cancel", onClick: onCancel }, ["Cancel"]),
+          ]),
+        ]);
+        const validateForm = () => {
+          const name = form.querySelector('[data-field="name"]').value;
+          const freq = Number(form.querySelector('[data-field="frequency"]').value);
+          const dur = Number(form.querySelector('[data-field="duration"]').value);
+          const error = form.querySelector('[data-role="form-error"]');
+          let msg = "";
+          if (!name) msg = "Name required";
+          else if (freq < 80 || freq > 160) msg = "Frequency 80–160 Hz";
+          else if (dur < 1 || dur > 60) msg = "Duration 1–60 min";
+          error.textContent = msg;
+        };
+        return form;
+      }
+
+      // ===== Device Picker Modal =====
+      function createDevicePickerModal(devices, onConfirm, onCancel) {
+        const selected = new Set();
+        const modal = h("div", { class: "modal-overlay", "data-role": "device-picker-modal" }, [
+          h("div", { class: "modal-content" }, [
+            h("div", { class: "modal-header" }, ["Select Devices"]),
+            h("div", { class: "device-picker" }, devices.map((d) =>
+              h("label", {}, [
+                h("input", {
+                  type: "checkbox",
+                  checked: false,
+                  onChange: (e) => {
+                    if (e.target.checked) selected.add(d.id);
+                    else selected.delete(d.id);
+                  },
+                }),
+                ` ${d.name}`,
+              ])
+            )),
+            h("div", { class: "form-actions" }, [
+              h("button", {
+                onClick: () => {
+                  if (selected.size === 0) {
+                    alert("Select at least one device");
+                    return;
+                  }
+                  onConfirm(Array.from(selected));
+                  modal.remove();
+                },
+              }, ["Start"]),
+              h("button", {
+                onClick: () => {
+                  onCancel();
+                  modal.remove();
+                },
+              }, ["Cancel"]),
+            ]),
+          ]),
+        ]);
+
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) {
+            onCancel();
+            modal.remove();
+          }
+        });
+
+        return modal;
+      }
+
+      // ===== Profiles View =====
+      function renderProfilesSection(root, { store, profileStore, ble, onStartProfile, onEditProfile, onDeleteProfile, onCreateProfile }) {
+        clear(root);
+        const section = h("section", { class: "profiles-section" }, [
+          h("h2", {}, ["Presets"]),
+        ]);
+
+        const profiles = profileStore.getAll();
+        if (profiles.length === 0) {
+          section.append(h("p", {}, ["No presets yet. Create one to get started."]));
+        } else {
+          for (const p of profiles) {
+            const card = h("div", { class: "profile-card", "data-id": p.id }, [
+              h("div", { class: "profile-info" }, [
+                h("div", { class: "profile-name" }, [p.name]),
+                h("div", { class: "profile-meta" }, [`${p.frequency} Hz, ${p.duration} min`]),
+              ]),
+              h("div", { class: "profile-actions" }, [
+                h("button", {
+                  "data-action": "start",
+                  onClick: () => onStartProfile(p.id),
+                }, ["Start"]),
+                h("div", { class: "profile-subactions" }, [
+                  h("button", {
+                    class: "secondary",
+                    "data-action": "edit",
+                    onClick: () => onEditProfile(p.id),
+                  }, ["Edit"]),
+                  h("button", {
+                    class: "secondary",
+                    "data-action": "delete",
+                    onClick: () => {
+                      if (confirm(`Delete preset "${p.name}"?`)) {
+                        onDeleteProfile(p.id);
+                      }
+                    },
+                  }, ["Delete"]),
+                ]),
+              ]),
+            ]);
+            section.append(card);
+          }
+        }
+
+        const createBtn = h("button", {
+          class: "add-btn",
+          "data-action": "create",
+          onClick: onCreateProfile,
+        }, ["+ New preset"]);
+        section.append(createBtn);
+
+        root.append(section);
+      }
+
+      // ===== Timer view =====
+      function renderTimerView(root, { profileStore, timer, onStop }) {
+        clear(root);
+        if (!timer.isRunning) return;
+        const profile = profileStore.get(timer.profileId);
+        const n = timer.deviceIds.length;
+        root.append(h("section", { class: "timer-display" }, [
+          h("h2", {}, [profile ? `Running: ${profile.name}` : "Running"]),
+          h("div", { class: "timer-countdown", "data-role": "countdown" }, [timer.formatTime(Math.max(0, timer.secondsLeft))]),
+          h("div", { class: "timer-devices" }, [`${n} device${n === 1 ? "" : "s"}`]),
+          h("button", { class: "timer-stop", onClick: onStop }, ["Stop"]),
+        ]));
+      }
+
       // ===== Connect view =====
       function renderConnectView(root, { store, ble, onAdded }) {
         const atLimit = store.get().devices.length >= MAX_DEVICES;
@@ -168,6 +519,7 @@
         const btn = h(
           "button",
           {
+            class: "add-btn",
             "data-action": "add",
             disabled: atLimit,
             onClick: async () => {
@@ -188,11 +540,18 @@
       }
 
       // ===== Control view =====
-      function rangeInput(control, min, max, value, onInput) {
-        return h("input", {
+      function rangeWithValue(control, min, max, value, unit, onInput) {
+        const num = h("input", { type: "number", min, max, value, "data-control": control + "-num", "aria-label": `${control} ${unit}` });
+        const range = h("input", {
           type: "range", "data-control": control, min, max, value,
-          onInput: (e) => onInput(Number(e.target.value)),
+          onInput: (e) => { const v = Number(e.target.value); num.value = v; onInput(v); },
         });
+        // Typing a number commits on blur/Enter; clamp and sync the slider back.
+        num.addEventListener("change", () => {
+          const v = clamp(Number(num.value), min, max);
+          num.value = v; range.value = v; onInput(v);
+        });
+        return [range, h("span", { class: "value-readout" }, [num, ` ${unit}`])];
       }
       function checkbox(control, checked, disabled, onChange) {
         return h("input", {
@@ -211,7 +570,7 @@
             store.setGlobal({ power: v });
             for (const id of followIds(store)) ble.setPower(id, v);
           })]),
-          h("label", {}, ["Frequency", rangeInput("frequency", FREQ_MIN, FREQ_MAX, g.frequency, (v) => {
+          h("label", {}, ["Frequency", ...rangeWithValue("frequency", FREQ_MIN, FREQ_MAX, g.frequency, "Hz", (v) => {
             store.setGlobal({ frequency: v });
             for (const id of followIds(store)) ble.setFrequency(id, v);
           })]),
@@ -222,7 +581,10 @@
         const s = resolveSettings(store.get(), id);
         const disabled = d.mode === "follow";
         return h("article", { "data-role": "device-card", "data-id": id }, [
-          h("header", {}, [d.name]),
+          h("header", {}, [
+            d.name,
+            d.battery != null ? h("span", { class: "battery-pill" }, [`\u{1F50B} ${d.battery}%`]) : "",
+          ]),
           h("label", {}, ["Custom", checkbox("mode", d.mode === "custom", false, (v) => {
             store.setDeviceMode(id, v ? "custom" : "follow");
             if (!v) pushSettings(ble, id, resolveSettings(store.get(), id));
@@ -232,7 +594,7 @@
             store.setDeviceCustom(id, { power: v });
             ble.setPower(id, v);
           })]),
-          h("label", {}, ["Frequency", rangeInput("frequency", FREQ_MIN, FREQ_MAX, s.frequency, (v) => {
+          h("label", {}, ["Frequency", ...rangeWithValue("frequency", FREQ_MIN, FREQ_MAX, s.frequency, "Hz", (v) => {
             store.setDeviceCustom(id, { frequency: v });
             ble.setFrequency(id, v);
           })]),
@@ -269,14 +631,69 @@
         );
       } else {
         const store = new AppStore();
+        const profileStore = new ProfileStore();
+        const timer = new TimerState();
+        app.append(h("div", { class: "app-title" }, ["Vibration Station"]));
         const connectRoot = document.createElement("div");
+        const timerRoot = document.createElement("div");
         const controlRoot = document.createElement("div");
-        app.append(connectRoot, controlRoot);
-        const renderAll = () => {
-          renderConnectView(connectRoot, { store, ble, onAdded: () => renderAll() });
-          renderControlView(controlRoot, { store, ble });
+        const presetsRoot = document.createElement("div");
+        app.append(timerRoot, presetsRoot, controlRoot, connectRoot);
+
+        const onStop = () => {
+          const ids = [...timer.deviceIds];
+          timer.stop();
+          for (const did of ids) ble.setPower(did, false);
+          renderAll();
         };
+        const renderAll = () => {
+          if (timer.isRunning) {
+            clear(connectRoot); clear(controlRoot); clear(presetsRoot);
+            renderTimerView(timerRoot, { profileStore, timer, onStop });
+          } else {
+            clear(timerRoot);
+            renderConnectView(connectRoot, { store, ble, onAdded: () => renderAll() });
+            renderControlView(controlRoot, { store, ble });
+            renderProfilesSection(presetsRoot, { store, profileStore, ble, onStartProfile, onEditProfile, onDeleteProfile, onCreateProfile });
+          }
+        };
+
+        const openForm = (initialData) => {
+          const overlay = h("div", { class: "modal-overlay" });
+          const form = createProfileForm(initialData, (data) => {
+            if (initialData) profileStore.update(initialData.id, data.name, data.frequency, data.duration);
+            else profileStore.create(data.name, data.frequency, data.duration);
+            overlay.remove();
+            renderAll();
+          }, () => overlay.remove());
+          overlay.append(h("div", { class: "modal-content" }, [
+            h("div", { class: "modal-header" }, [initialData ? "Edit preset" : "New preset"]),
+            form,
+          ]));
+          overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+          document.body.append(overlay);
+        };
+        const onCreateProfile = () => openForm(null);
+        const onEditProfile = (id) => openForm(profileStore.get(id));
+        const onDeleteProfile = (id) => { profileStore.delete(id); renderAll(); };
+        const onStartProfile = (id) => {
+          const profile = profileStore.get(id);
+          if (!profile) return;
+          const deviceIds = store.get().devices.map((d) => d.id);
+          if (deviceIds.length === 0) { alert("Connect a device first."); return; }
+          for (const did of deviceIds) { ble.setFrequency(did, profile.frequency); ble.setPower(did, true); }
+          timer.start(profile, deviceIds,
+            (secs) => {
+              const el = timerRoot.querySelector('[data-role="countdown"]');
+              if (el) el.textContent = timer.formatTime(Math.max(0, secs));
+            },
+            () => { for (const did of deviceIds) ble.setPower(did, false); renderAll(); },
+          );
+          renderAll();
+        };
+
         ble.onDisconnect((id) => { store.removeDevice(id); renderAll(); });
+        ble.onBattery((id, pct) => { store.setDeviceBattery(id, pct); renderAll(); });
         renderAll();
       }
 
