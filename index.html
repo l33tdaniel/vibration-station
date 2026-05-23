@@ -57,15 +57,18 @@
 
     <script type="module">
       // ===== Device contract (matches Bluetooth_Board_Code.ino) =====
-      // Standard Battery service 180F with one int characteristic 2A19.
-      // Value is a 4-byte little-endian int: 0 = motor off, 80-160 = tone (Hz).
-      const SERVICE_UUID = "0000180f-0000-1000-8000-00805f9b34fb"; // 0x180F
-      const MOTOR_CHAR_UUID = "00002a19-0000-1000-8000-00805f9b34fb"; // 0x2A19
+      // Battery service 180F / char 2A19: uint8 0-100 % (read+notify) — real battery.
+      // Motor service 6e500001.. / char 6e500002..: int (read+write).
+      //   Value is a 4-byte little-endian int: 0 = motor off, 80-160 = intensity.
+      const BATTERY_SERVICE_UUID = "0000180f-0000-1000-8000-00805f9b34fb";
+      const BATTERY_LEVEL_CHAR_UUID = "00002a19-0000-1000-8000-00805f9b34fb";
+      const MOTOR_SERVICE_UUID = "6e500001-b5a3-f393-e0a9-e50e24dcca9e";
+      const MOTOR_CHAR_UUID = "6e500002-b5a3-f393-e0a9-e50e24dcca9e";
       const DEVICE_NAME_PREFIX = "Vibration Device";
       const FREQ_MIN = 80;
       const FREQ_MAX = 160;
       const MAX_DEVICES = 4;
-      const VERSION = "2026-05-22.2"; // bump on each deploy; shown at page bottom
+      const VERSION = "2026-05-23.1"; // bump on each deploy; shown at page bottom
 
       // ===== Encoding =====
       function clamp(value, min, max) {
