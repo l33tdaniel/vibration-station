@@ -210,7 +210,7 @@
         setGlobal(p) { this.state.global = { ...this.state.global, ...p }; this.emit(); }
         addDevice(id, name) {
           if (this.find(id)) return;
-          this.state.devices.push({ id, name, mode: "follow", custom: { ...this.state.global } });
+          this.state.devices.push({ id, name, mode: "follow", custom: { ...this.state.global }, battery: null });
           this.emit();
         }
         removeDevice(id) {
@@ -219,6 +219,7 @@
         }
         setDeviceMode(id, mode) { const d = this.find(id); if (!d) return; d.mode = mode; this.emit(); }
         setDeviceCustom(id, p) { const d = this.find(id); if (!d) return; d.custom = { ...d.custom, ...p }; this.emit(); }
+        setDeviceBattery(id, pct) { const d = this.find(id); if (!d) return; d.battery = pct; this.emit(); }
       }
 
       // ===== BLE: in-memory fake (used with ?fake) =====
@@ -243,23 +244,41 @@
         isSupported() { return typeof navigator !== "undefined" && !!navigator.bluetooth; }
         async requestDevice() {
           const device = await navigator.bluetooth.requestDevice({
-            filters: [{ services: [SERVICE_UUID] }, { namePrefix: DEVICE_NAME_PREFIX }],
-            optionalServices: [SERVICE_UUID],
+            filters: [{ services: [BATTERY_SERVICE_UUID] }, { namePrefix: DEVICE_NAME_PREFIX }],
+            optionalServices: [BATTERY_SERVICE_UUID, MOTOR_SERVICE_UUID],
           });
           const id = device.id;
           const onDrop = () => { this.conns.delete(id); if (this.disconnectCb) this.disconnectCb(id); };
           const conn = await this.openConnection(device, onDrop);
           this.conns.set(id, conn);
           device.addEventListener("gattserverdisconnected", onDrop);
+          this.startBattery(conn, id);
           return { id, name: device.name ?? "Vibration device" };
         }
         async openConnection(device, onDrop) {
           if (!device.gatt) throw new Error("GATT not available on this device");
           const server = await device.gatt.connect();
-          const service = await server.getPrimaryService(SERVICE_UUID);
-          const motor = await service.getCharacteristic(MOTOR_CHAR_UUID);
-          return { device, motor, onDrop, power: false, freq: 120 };
+          const motorService = await server.getPrimaryService(MOTOR_SERVICE_UUID);
+          const motor = await motorService.getCharacteristic(MOTOR_CHAR_UUID);
+          let battery = null;
+          try {
+            const battService = await server.getPrimaryService(BATTERY_SERVICE_UUID);
+            battery = await battService.getCharacteristic(BATTERY_LEVEL_CHAR_UUID);
+          } catch (e) { battery = null; } // older firmware without battery char
+          return { device, motor, battery, onDrop, power: false, freq: 120 };
         }
+        async startBattery(conn, id) {
+          if (!conn.battery) return;
+          try {
+            const v = await conn.battery.readValue();
+            if (this.batteryCb) this.batteryCb(id, v.getUint8(0));
+            await conn.battery.startNotifications();
+            conn.battery.addEventListener("characteristicvaluechanged", (e) => {
+              if (this.batteryCb) this.batteryCb(id, e.target.value.getUint8(0));
+            });
+          } catch (e) { /* battery optional */ }
+        }
+        onBattery(cb) { this.batteryCb = cb; }
         get(id) {
           const c = this.conns.get(id);
           if (!c) throw new Error(`device ${id} not connected`);
@@ -584,6 +603,7 @@
           renderControlView(controlRoot, { store, ble });
         };
         ble.onDisconnect((id) => { store.removeDevice(id); renderAll(); });
+        ble.onBattery((id, pct) => { store.setDeviceBattery(id, pct); renderAll(); });
         renderAll();
       }
 
