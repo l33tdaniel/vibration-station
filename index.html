@@ -489,12 +489,6 @@
       }
 
       // ===== Control view =====
-      function rangeInput(control, min, max, value, onInput) {
-        return h("input", {
-          type: "range", "data-control": control, min, max, value,
-          onInput: (e) => onInput(Number(e.target.value)),
-        });
-      }
       function rangeWithValue(control, min, max, value, unit, onInput) {
         const out = h("span", { class: "value-readout" }, [`${value} ${unit}`]);
         const input = h("input", {
