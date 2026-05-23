@@ -21,7 +21,7 @@
       input[type="checkbox"] { width: 1.8rem; height: 1.8rem; accent-color: var(--accent); }
       .value-readout { font-size: .95rem; font-weight: 700; color: var(--accent); min-width: 62px; text-align: right; }
       .global-bar, .cards article { background: var(--card); border: 1px solid var(--border); border-radius: .9rem; padding: 1.25rem; margin: .85rem 0; }
-      .cards article header { font-weight: 700; font-size: 1.15rem; color: var(--label); margin-bottom: .5rem; }
+      .cards article header { display: flex; align-items: center; justify-content: space-between; font-weight: 700; font-size: 1.15rem; color: var(--label); margin-bottom: .5rem; }
       .hint { color: #b00020; min-height: 1.2em; }
       .unsupported { font-size: 1.1rem; line-height: 1.55; }
       .version { color: #9fb3c0; font-size: .8rem; margin-top: 2rem; text-align: center; }
@@ -247,7 +247,7 @@
         isSupported() { return typeof navigator !== "undefined" && !!navigator.bluetooth; }
         async requestDevice() {
           const device = await navigator.bluetooth.requestDevice({
-            filters: [{ services: [BATTERY_SERVICE_UUID] }, { namePrefix: DEVICE_NAME_PREFIX }],
+            filters: [{ services: [MOTOR_SERVICE_UUID] }, { namePrefix: DEVICE_NAME_PREFIX }],
             optionalServices: [BATTERY_SERVICE_UUID, MOTOR_SERVICE_UUID],
           });
           const id = device.id;
@@ -276,10 +276,9 @@
             const v = await conn.battery.readValue();
             if (this.batteryCb) this.batteryCb(id, v.getUint8(0));
             await conn.battery.startNotifications();
-            conn.battery.addEventListener("characteristicvaluechanged", (e) => {
-              if (this.batteryCb) this.batteryCb(id, e.target.value.getUint8(0));
-            });
-          } catch (e) { /* battery optional */ }
+            conn.batteryHandler = (e) => { if (this.batteryCb) this.batteryCb(id, e.target.value.getUint8(0)); };
+            conn.battery.addEventListener("characteristicvaluechanged", conn.batteryHandler);
+          } catch (e) { console.warn("battery unavailable", e); }
         }
         onBattery(cb) { this.batteryCb = cb; }
         get(id) {
@@ -295,6 +294,7 @@
           const conn = this.conns.get(id);
           if (!conn) return;
           conn.device.removeEventListener("gattserverdisconnected", conn.onDrop);
+          if (conn.battery && conn.batteryHandler) conn.battery.removeEventListener("characteristicvaluechanged", conn.batteryHandler);
           if (conn.device.gatt) conn.device.gatt.disconnect();
           this.conns.delete(id);
         }
@@ -552,7 +552,7 @@
         return h("article", { "data-role": "device-card", "data-id": id }, [
           h("header", {}, [
             d.name,
-            d.battery != null ? h("span", { class: "battery-pill", style: "float:right" }, [`\u{1F50B} ${d.battery}%`]) : "",
+            d.battery != null ? h("span", { class: "battery-pill" }, [`\u{1F50B} ${d.battery}%`]) : "",
           ]),
           h("label", {}, ["Custom", checkbox("mode", d.mode === "custom", false, (v) => {
             store.setDeviceMode(id, v ? "custom" : "follow");
