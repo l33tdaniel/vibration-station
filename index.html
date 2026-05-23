@@ -495,6 +495,14 @@
           onInput: (e) => onInput(Number(e.target.value)),
         });
       }
+      function rangeWithValue(control, min, max, value, unit, onInput) {
+        const out = h("span", { class: "value-readout" }, [`${value} ${unit}`]);
+        const input = h("input", {
+          type: "range", "data-control": control, min, max, value,
+          onInput: (e) => { const v = Number(e.target.value); out.textContent = `${v} ${unit}`; onInput(v); },
+        });
+        return [input, out];
+      }
       function checkbox(control, checked, disabled, onChange) {
         return h("input", {
           type: "checkbox", "data-control": control, checked, disabled,
@@ -512,7 +520,7 @@
             store.setGlobal({ power: v });
             for (const id of followIds(store)) ble.setPower(id, v);
           })]),
-          h("label", {}, ["Frequency", rangeInput("frequency", FREQ_MIN, FREQ_MAX, g.frequency, (v) => {
+          h("label", {}, ["Frequency", ...rangeWithValue("frequency", FREQ_MIN, FREQ_MAX, g.frequency, "Hz", (v) => {
             store.setGlobal({ frequency: v });
             for (const id of followIds(store)) ble.setFrequency(id, v);
           })]),
@@ -533,7 +541,7 @@
             store.setDeviceCustom(id, { power: v });
             ble.setPower(id, v);
           })]),
-          h("label", {}, ["Frequency", rangeInput("frequency", FREQ_MIN, FREQ_MAX, s.frequency, (v) => {
+          h("label", {}, ["Frequency", ...rangeWithValue("frequency", FREQ_MIN, FREQ_MAX, s.frequency, "Hz", (v) => {
             store.setDeviceCustom(id, { frequency: v });
             ble.setFrequency(id, v);
           })]),
