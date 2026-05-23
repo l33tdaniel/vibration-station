@@ -229,8 +229,11 @@
         async requestDevice() {
           const n = ++this.counter;
           this.calls.push({ m: "requestDevice", args: [] });
-          return { id: `fake-${n}`, name: `Fake Device ${n}` };
+          const id = `fake-${n}`;
+          setTimeout(() => { if (this.batteryCb) this.batteryCb(id, 82); }, 50);
+          return { id, name: `Fake Device ${n}` };
         }
+        onBattery(cb) { this.batteryCb = cb; }
         async setPower(id, on) { this.calls.push({ m: "setPower", args: [id, on] }); }
         async setFrequency(id, hz) { this.calls.push({ m: "setFrequency", args: [id, hz] }); }
         async disconnect(id) { this.calls.push({ m: "disconnect", args: [id] }); }
@@ -547,7 +550,10 @@
         const s = resolveSettings(store.get(), id);
         const disabled = d.mode === "follow";
         return h("article", { "data-role": "device-card", "data-id": id }, [
-          h("header", {}, [d.name]),
+          h("header", {}, [
+            d.name,
+            d.battery != null ? h("span", { class: "battery-pill", style: "float:right" }, [`\u{1F50B} ${d.battery}%`]) : "",
+          ]),
           h("label", {}, ["Custom", checkbox("mode", d.mode === "custom", false, (v) => {
             store.setDeviceMode(id, v ? "custom" : "follow");
             if (!v) pushSettings(ble, id, resolveSettings(store.get(), id));
