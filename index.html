@@ -19,7 +19,8 @@
       label { display: flex; align-items: center; gap: .75rem; font-size: 1rem; font-weight: 600; color: var(--label); margin: .9rem 0; }
       input[type="range"] { flex: 1; height: 44px; accent-color: var(--accent); }
       input[type="checkbox"] { width: 1.8rem; height: 1.8rem; accent-color: var(--accent); }
-      .value-readout { font-size: .95rem; font-weight: 700; color: var(--accent); min-width: 62px; text-align: right; }
+      .value-readout { font-size: .95rem; font-weight: 700; color: var(--accent); min-width: 62px; text-align: right; white-space: nowrap; }
+      .value-readout input { width: 3.4em; font-size: .95rem; font-weight: 700; color: var(--accent); text-align: right; border: 1px solid var(--border); border-radius: .4rem; padding: .25rem; min-height: 36px; -moz-appearance: textfield; }
       .global-bar, .cards article { background: var(--card); border: 1px solid var(--border); border-radius: .9rem; padding: 1.25rem; margin: .85rem 0; }
       .cards article header { display: flex; align-items: center; justify-content: space-between; font-weight: 700; font-size: 1.15rem; color: var(--label); margin-bottom: .5rem; }
       .hint { color: #b00020; min-height: 1.2em; }
@@ -68,7 +69,7 @@
       const FREQ_MIN = 80;
       const FREQ_MAX = 160;
       const MAX_DEVICES = 4;
-      const VERSION = "2026-05-23.1"; // bump on each deploy; shown at page bottom
+      const VERSION = "2026-05-23.2"; // bump on each deploy; shown at page bottom
 
       // ===== Encoding =====
       function clamp(value, min, max) {
@@ -489,6 +490,20 @@
         root.append(section);
       }
 
+      // ===== Timer view =====
+      function renderTimerView(root, { profileStore, timer, onStop }) {
+        clear(root);
+        if (!timer.isRunning) return;
+        const profile = profileStore.get(timer.profileId);
+        const n = timer.deviceIds.length;
+        root.append(h("section", { class: "timer-display" }, [
+          h("h2", {}, [profile ? `Running: ${profile.name}` : "Running"]),
+          h("div", { class: "timer-countdown", "data-role": "countdown" }, [timer.formatTime(Math.max(0, timer.secondsLeft))]),
+          h("div", { class: "timer-devices" }, [`${n} device${n === 1 ? "" : "s"}`]),
+          h("button", { class: "timer-stop", onClick: onStop }, ["Stop"]),
+        ]));
+      }
+
       // ===== Connect view =====
       function renderConnectView(root, { store, ble, onAdded }) {
         const atLimit = store.get().devices.length >= MAX_DEVICES;
@@ -517,12 +532,17 @@
 
       // ===== Control view =====
       function rangeWithValue(control, min, max, value, unit, onInput) {
-        const out = h("span", { class: "value-readout" }, [`${value} ${unit}`]);
-        const input = h("input", {
+        const num = h("input", { type: "number", min, max, value, "data-control": control + "-num", "aria-label": `${control} ${unit}` });
+        const range = h("input", {
           type: "range", "data-control": control, min, max, value,
-          onInput: (e) => { const v = Number(e.target.value); out.textContent = `${v} ${unit}`; onInput(v); },
+          onInput: (e) => { const v = Number(e.target.value); num.value = v; onInput(v); },
         });
-        return [input, out];
+        // Typing a number commits on blur/Enter; clamp and sync the slider back.
+        num.addEventListener("change", () => {
+          const v = clamp(Number(num.value), min, max);
+          num.value = v; range.value = v; onInput(v);
+        });
+        return [range, h("span", { class: "value-readout" }, [num, ` ${unit}`])];
       }
       function checkbox(control, checked, disabled, onChange) {
         return h("input", {
@@ -602,14 +622,67 @@
         );
       } else {
         const store = new AppStore();
+        const profileStore = new ProfileStore();
+        const timer = new TimerState();
         app.append(h("div", { class: "app-title" }, ["Vibration Station"]));
         const connectRoot = document.createElement("div");
+        const timerRoot = document.createElement("div");
         const controlRoot = document.createElement("div");
-        app.append(connectRoot, controlRoot);
-        const renderAll = () => {
-          renderConnectView(connectRoot, { store, ble, onAdded: () => renderAll() });
-          renderControlView(controlRoot, { store, ble });
+        const presetsRoot = document.createElement("div");
+        app.append(connectRoot, timerRoot, controlRoot, presetsRoot);
+
+        const onStop = () => {
+          const ids = [...timer.deviceIds];
+          timer.stop();
+          for (const did of ids) ble.setPower(did, false);
+          renderAll();
         };
+        const renderAll = () => {
+          if (timer.isRunning) {
+            clear(connectRoot); clear(controlRoot); clear(presetsRoot);
+            renderTimerView(timerRoot, { profileStore, timer, onStop });
+          } else {
+            clear(timerRoot);
+            renderConnectView(connectRoot, { store, ble, onAdded: () => renderAll() });
+            renderControlView(controlRoot, { store, ble });
+            renderProfilesSection(presetsRoot, { store, profileStore, ble, onStartProfile, onEditProfile, onDeleteProfile, onCreateProfile });
+          }
+        };
+
+        const openForm = (initialData) => {
+          const overlay = h("div", { class: "modal-overlay" });
+          const form = createProfileForm(initialData, (data) => {
+            if (initialData) profileStore.update(initialData.id, data.name, data.frequency, data.duration);
+            else profileStore.create(data.name, data.frequency, data.duration);
+            overlay.remove();
+            renderAll();
+          }, () => overlay.remove());
+          overlay.append(h("div", { class: "modal-content" }, [
+            h("div", { class: "modal-header" }, [initialData ? "Edit preset" : "New preset"]),
+            form,
+          ]));
+          overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+          document.body.append(overlay);
+        };
+        const onCreateProfile = () => openForm(null);
+        const onEditProfile = (id) => openForm(profileStore.get(id));
+        const onDeleteProfile = (id) => { profileStore.delete(id); renderAll(); };
+        const onStartProfile = (id) => {
+          const profile = profileStore.get(id);
+          if (!profile) return;
+          const deviceIds = store.get().devices.map((d) => d.id);
+          if (deviceIds.length === 0) { alert("Connect a device first."); return; }
+          for (const did of deviceIds) { ble.setFrequency(did, profile.frequency); ble.setPower(did, true); }
+          timer.start(profile, deviceIds,
+            (secs) => {
+              const el = timerRoot.querySelector('[data-role="countdown"]');
+              if (el) el.textContent = timer.formatTime(Math.max(0, secs));
+            },
+            () => { for (const did of deviceIds) ble.setPower(did, false); renderAll(); },
+          );
+          renderAll();
+        };
+
         ble.onDisconnect((id) => { store.removeDevice(id); renderAll(); });
         ble.onBattery((id, pct) => { store.setDeviceBattery(id, pct); renderAll(); });
         renderAll();
