@@ -298,7 +298,7 @@
         const isEdit = !!initialData;
         const form = h("div", { class: "form-group" }, [
           h("div", { class: "form-field" }, [
-            h("label", {}, ["Profile Name"]),
+            h("label", {}, ["Preset name"]),
             h("input", {
               type: "text",
               value: initialData?.name || "",
@@ -417,12 +417,12 @@
       function renderProfilesSection(root, { store, profileStore, ble, onStartProfile, onEditProfile, onDeleteProfile, onCreateProfile }) {
         clear(root);
         const section = h("section", { class: "profiles-section" }, [
-          h("h2", {}, ["Profiles"]),
+          h("h2", {}, ["Presets"]),
         ]);
 
         const profiles = profileStore.getAll();
         if (profiles.length === 0) {
-          section.append(h("p", {}, ["No profiles yet. Create one to get started."]));
+          section.append(h("p", {}, ["No presets yet. Create one to get started."]));
         } else {
           for (const p of profiles) {
             const card = h("div", { class: "profile-card", "data-id": p.id }, [
@@ -442,7 +442,7 @@
                 h("button", {
                   "data-action": "delete",
                   onClick: () => {
-                    if (confirm(`Delete profile "${p.name}"?`)) {
+                    if (confirm(`Delete preset "${p.name}"?`)) {
                       onDeleteProfile(p.id);
                     }
                   },
@@ -456,7 +456,7 @@
         const createBtn = h("button", {
           "data-action": "create",
           onClick: onCreateProfile,
-        }, ["+ New Profile"]);
+        }, ["+ New preset"]);
         section.append(createBtn);
 
         root.append(section);
