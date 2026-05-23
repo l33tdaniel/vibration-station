@@ -133,6 +133,44 @@
         }
       }
 
+      // ===== Timer =====
+      class TimerState {
+        constructor() {
+          this.isRunning = false;
+          this.secondsLeft = 0;
+          this.deviceIds = [];
+          this.profileId = null;
+          this.intervalId = null;
+        }
+        start(profile, deviceIds, onTick, onComplete) {
+          this.isRunning = true;
+          this.secondsLeft = profile.duration * 60;
+          this.deviceIds = deviceIds;
+          this.profileId = profile.id;
+          this.intervalId = setInterval(() => {
+            this.secondsLeft -= 0.1; // 100ms tick
+            onTick(this.secondsLeft);
+            if (this.secondsLeft <= 0) {
+              this.stop();
+              onComplete();
+            }
+          }, 100);
+        }
+        stop() {
+          this.isRunning = false;
+          if (this.intervalId) clearInterval(this.intervalId);
+          this.intervalId = null;
+          this.secondsLeft = 0;
+          this.deviceIds = [];
+          this.profileId = null;
+        }
+        formatTime(seconds) {
+          const mins = Math.floor(seconds / 60);
+          const secs = Math.floor(seconds % 60);
+          return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+        }
+      }
+
       const DEFAULT_GLOBAL = { power: false, frequency: 120 };
 
       function resolveSettings(state, id) {
