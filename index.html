@@ -27,13 +27,14 @@
       .unsupported { font-size: 1.1rem; line-height: 1.55; }
       .version { color: var(--muted); font-size: .8rem; margin-top: 2rem; text-align: center; }
       .profiles-section { margin: .85rem 0; }
-      .profile-card { background: var(--card); border: 1px solid var(--border); border-radius: .9rem; padding: 1.25rem; margin: .85rem 0; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+      .profile-card { background: var(--card); border: 1px solid var(--border); border-radius: .9rem; padding: 1.1rem 1.25rem; margin: .85rem 0; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
       .profile-info { flex: 1; }
       .profile-name { font-weight: 700; font-size: 1.15rem; color: var(--label); }
       .profile-meta { display: inline-block; font-size: .85rem; font-weight: 600; color: var(--header); background: #e3f3f9; padding: .25rem .7rem; border-radius: 1rem; margin-top: .4rem; }
-      .profile-actions { display: flex; flex-direction: column; gap: .5rem; align-items: flex-end; }
-      .profile-actions button { padding: .55rem 1rem; font-size: .95rem; min-height: 44px; }
-      .profile-actions .secondary { background: none; color: var(--muted); padding: .25rem .5rem; min-height: 44px; }
+      .profile-actions { display: flex; flex-direction: column; gap: .4rem; align-items: stretch; }
+      .profile-actions [data-action="start"] { min-width: 104px; }
+      .profile-subactions { display: flex; gap: .25rem; justify-content: flex-end; }
+      .profile-actions .secondary { background: none; color: var(--muted); padding: .35rem .55rem; min-height: 40px; font-size: .9rem; }
       .battery-pill { font-size: .85rem; font-weight: 700; color: #1d7a45; background: #e6f5ec; padding: .25rem .7rem; border-radius: 1rem; }
       .timer-display { text-align: center; padding: 2rem 1.5rem; background: var(--card); border: 1px solid var(--border); border-radius: .9rem; }
       .timer-countdown { font-size: 2.5rem; font-family: monospace; font-weight: bold; color: var(--accent); margin: 1rem 0; }
@@ -69,7 +70,7 @@
       const FREQ_MIN = 80;
       const FREQ_MAX = 160;
       const MAX_DEVICES = 4;
-      const VERSION = "2026-05-23.2"; // bump on each deploy; shown at page bottom
+      const VERSION = "2026-05-23.3"; // bump on each deploy; shown at page bottom
 
       // ===== Encoding =====
       function clamp(value, min, max) {
@@ -461,20 +462,22 @@
                   "data-action": "start",
                   onClick: () => onStartProfile(p.id),
                 }, ["Start"]),
-                h("button", {
-                  class: "secondary",
-                  "data-action": "edit",
-                  onClick: () => onEditProfile(p.id),
-                }, ["Edit"]),
-                h("button", {
-                  class: "secondary",
-                  "data-action": "delete",
-                  onClick: () => {
-                    if (confirm(`Delete preset "${p.name}"?`)) {
-                      onDeleteProfile(p.id);
-                    }
-                  },
-                }, ["Delete"]),
+                h("div", { class: "profile-subactions" }, [
+                  h("button", {
+                    class: "secondary",
+                    "data-action": "edit",
+                    onClick: () => onEditProfile(p.id),
+                  }, ["Edit"]),
+                  h("button", {
+                    class: "secondary",
+                    "data-action": "delete",
+                    onClick: () => {
+                      if (confirm(`Delete preset "${p.name}"?`)) {
+                        onDeleteProfile(p.id);
+                      }
+                    },
+                  }, ["Delete"]),
+                ]),
               ]),
             ]);
             section.append(card);
@@ -629,7 +632,7 @@
         const timerRoot = document.createElement("div");
         const controlRoot = document.createElement("div");
         const presetsRoot = document.createElement("div");
-        app.append(connectRoot, timerRoot, controlRoot, presetsRoot);
+        app.append(timerRoot, presetsRoot, connectRoot, controlRoot);
 
         const onStop = () => {
           const ids = [...timer.deviceIds];
