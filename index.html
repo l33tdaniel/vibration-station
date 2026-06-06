@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Vibration Station</title>
     <link rel="manifest" href="./manifest.json" />
+    <link rel="icon" href="./icon-192.png" />
     <meta name="theme-color" content="#0f5e7a" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -684,7 +685,9 @@
       }
       function renderControlView(root, opts) {
         const { store, ble } = opts;
-        const rerender = () => renderControlView(root, opts);
+        // Use the full app re-render when provided: adding/removing a device also
+        // affects the presets section (Start enabled state), not just this view.
+        const rerender = opts.rerender || (() => renderControlView(root, opts));
         clear(root);
         root.append(globalBar(store, ble));
         const cards = h("section", { class: "cards" });
@@ -734,7 +737,7 @@
           } else {
             clear(timerRoot);
             renderConnectView(connectRoot, { store, ble, onAdded: () => renderAll() });
-            renderControlView(controlRoot, { store, ble });
+            renderControlView(controlRoot, { store, ble, rerender: renderAll });
             renderProfilesSection(presetsRoot, { store, profileStore, ble, onStartProfile, onEditProfile, onDeleteProfile, onCreateProfile });
           }
         };
