@@ -24,6 +24,13 @@ const int PWM_MAX = 180;       // tunable: voltage-cap ceiling (<=182 keeps avg 
 const float VBAT_EMPTY = 3.3;
 const float VBAT_FULL  = 4.2;
 
+// ADC SCALING (XIAO nRF52840)
+// AR_DEFAULT = 0.6V ref @ 1/6 gain -> 3.6V full scale. Set 12-bit in setup().
+// On-board divider P0.31: (1M + 0.51M) / 0.51M = 1510/510.
+const float ADC_REF     = 3.6;
+const float ADC_MAX     = 4096.0;
+const float VBAT_DIVIDER = 1510.0 / 510.0;
+
 // BLE
 BLEService batteryService("180F");
 BLEUnsignedCharCharacteristic batteryLevelChar("2A19", BLERead | BLENotify);
@@ -46,6 +53,8 @@ void setup() {
   digitalWrite(VBAT_ENABLE, LOW); // Enable battery sensing circuit
   pinMode(CHARGE_PIN, OUTPUT);
   digitalWrite(CHARGE_PIN, LOW);  // Set to 100mA charging
+  analogReference(AR_DEFAULT);    // 3.6V full scale
+  analogReadResolution(12);       // 0-4095, matches ADC_MAX
 
   // 3. INITIALIZE BLUETOOTH
   if (!BLE.begin()) {
@@ -114,8 +123,7 @@ void setMotor(int val) {
 
 float readBatteryVoltage() {
   uint32_t raw = analogRead(VBAT_PIN);
-  // XIAO Divider 1M / 510k: Raw * RefV / Resolution * DividerRatio
-  return (float)raw * 3.3 / 1024.0 * (1510.0 / 510.0);
+  return (float)raw * ADC_REF / ADC_MAX * VBAT_DIVIDER;
 }
 
 uint8_t readBatteryPercent() {
