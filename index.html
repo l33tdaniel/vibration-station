@@ -4,14 +4,24 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Vibration Station</title>
+    <link rel="manifest" href="./manifest.json" />
+    <meta name="theme-color" content="#0f5e7a" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Vibration" />
     <style>
       :root {
         font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         --ground: #eef4f9; --card: #fff; --border: #dbe6ee;
         --accent: #0f7aa3; --header: #0f5e7a;
-        --label: #16384a; --muted: #6b8595;
+        --label: #16384a; --muted: #4a6072;
       }
-      body { margin: 0; padding: 1rem; max-width: 480px; margin-inline: auto; color: var(--label); background: var(--ground); }
+      body {
+        margin: 0; max-width: 480px; margin-inline: auto; color: var(--label); background: var(--ground);
+        padding: calc(1rem + env(safe-area-inset-top)) calc(1rem + env(safe-area-inset-right)) calc(1rem + env(safe-area-inset-bottom)) calc(1rem + env(safe-area-inset-left));
+      }
+      :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
       .app-title { color: var(--header); font-size: 1.5rem; font-weight: 700; margin: .25rem .25rem 1rem; }
       h2 { font-size: .9rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--header); margin: 0 0 .9rem; }
       button { font-size: 1rem; font-weight: 600; padding: .7rem 1.1rem; border-radius: .55rem; border: none; background: var(--accent); color: #fff; cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
@@ -40,6 +50,8 @@
       .connect { margin: 0; }
       .connect .hint:empty { min-height: 0; }
       .battery-pill { font-size: .85rem; font-weight: 700; color: #1d7a45; background: #e6f5ec; padding: .25rem .7rem; border-radius: 1rem; }
+      .battery-pill.warn { color: #8a5a00; background: #fdf0d8; }
+      .battery-pill.low { color: #b00020; background: #fbe1e5; }
       .timer-display { text-align: center; padding: 2rem 1.5rem; background: var(--card); border: 1px solid var(--border); border-radius: .9rem; }
       .timer-countdown { font-size: 2.5rem; font-family: monospace; font-weight: bold; color: var(--accent); margin: 1rem 0; }
       .timer-devices { font-size: 1rem; color: var(--muted); margin: 1rem 0; }
@@ -74,7 +86,7 @@
       const FREQ_MIN = 80;
       const FREQ_MAX = 160;
       const MAX_DEVICES = 4;
-      const VERSION = "2026-06-05.1"; // bump on each deploy; shown at page bottom
+      const VERSION = "2026-06-05.2"; // bump on each deploy; shown at page bottom
 
       // ===== Encoding =====
       function clamp(value, min, max) {
@@ -99,7 +111,10 @@
         load() {
           try {
             const data = localStorage.getItem("vibration-profiles");
-            this.profiles = data ? JSON.parse(data) : [];
+            const parsed = data ? JSON.parse(data) : [];
+            this.profiles = Array.isArray(parsed)
+              ? parsed.filter((p) => p && typeof p.id === "string" && ProfileStore.valid(p.name, p.frequency, p.duration))
+              : [];
           } catch (e) {
             console.error("Failed to load profiles:", e);
             this.profiles = [];
@@ -114,30 +129,35 @@
           }
           return true;
         }
+        static valid(name, frequency, duration) {
+          return !!name &&
+            Number.isFinite(frequency) && frequency >= 80 && frequency <= 160 &&
+            Number.isFinite(duration) && duration >= 1 && duration <= 60;
+        }
+        newId() {
+          return (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.round(performance.now())}`;
+        }
         create(name, frequency, duration) {
-          if (!name || frequency < 80 || frequency > 160 || duration < 1 || duration > 60) {
-            return null;
-          }
+          if (!ProfileStore.valid(name, frequency, duration)) return null;
           const profile = {
-            id: String(Date.now()),
+            id: this.newId(),
             name,
             frequency: Math.round(frequency),
             duration: Math.round(duration),
           };
           this.profiles.push(profile);
-          this.save();
+          if (!this.save()) { this.profiles.pop(); return null; } // storage failed
           return profile;
         }
         update(id, name, frequency, duration) {
           const p = this.profiles.find((x) => x.id === id);
           if (!p) return null;
-          if (!name || frequency < 80 || frequency > 160 || duration < 1 || duration > 60) {
-            return null;
-          }
+          if (!ProfileStore.valid(name, frequency, duration)) return null;
+          const prev = { name: p.name, frequency: p.frequency, duration: p.duration };
           p.name = name;
           p.frequency = Math.round(frequency);
           p.duration = Math.round(duration);
-          this.save();
+          if (!this.save()) { Object.assign(p, prev); return null; } // storage failed
           return p;
         }
         delete(id) {
@@ -163,12 +183,14 @@
           this.endTime = 0;
         }
         start(profile, deviceIds, onTick, onComplete) {
+          const totalMs = profile.duration * 60 * 1000;
+          if (!Number.isFinite(totalMs) || totalMs <= 0) return false; // bad data: never start
           this.isRunning = true;
           this.deviceIds = deviceIds;
           this.profileId = profile.id;
           // Derive remaining time from a fixed end timestamp so setInterval
           // jitter and float accumulation can't drift the countdown.
-          this.endTime = performance.now() + profile.duration * 60 * 1000;
+          this.endTime = performance.now() + totalMs;
           this.secondsLeft = (this.endTime - performance.now()) / 1000;
           this.intervalId = setInterval(() => {
             this.secondsLeft = Math.max(0, (this.endTime - performance.now()) / 1000);
@@ -297,8 +319,27 @@
           if (!c) throw new Error(`device ${id} not connected`);
           return c;
         }
-        // Single characteristic: write power ? frequency : 0 on either change.
-        async write(c) { await c.motor.writeValue(encodeMotor(c.power, c.freq)); }
+        // One GATT op per device at a time. Coalesce rapid changes (slider drag):
+        // keep one write in flight, and if more arrive, send one more with the
+        // latest c.power/c.freq. Errors are swallowed so callers can't leak a
+        // rejection; the firmware stops the motor on disconnect anyway.
+        async write(c) {
+          if (c.writing) { c.writeAgain = true; return c.writeChain; }
+          c.writing = true;
+          c.writeChain = (async () => {
+            try {
+              do {
+                c.writeAgain = false;
+                await c.motor.writeValue(encodeMotor(c.power, c.freq));
+              } while (c.writeAgain);
+            } catch (e) {
+              console.warn("motor write failed", e);
+            } finally {
+              c.writing = false;
+            }
+          })();
+          return c.writeChain;
+        }
         async setPower(id, on) { const c = this.get(id); c.power = on; await this.write(c); }
         async setFrequency(id, hz) { const c = this.get(id); c.freq = hz; await this.write(c); }
         async disconnect(id) {
@@ -329,6 +370,42 @@
       }
       function clear(root) { root.replaceChildren(); }
 
+      // ===== Modal host: focus trap, Escape, ARIA dialog, no stacking =====
+      let activeModalClose = null;
+      function presentModal(buildContent, onClose) {
+        if (activeModalClose) return null; // one modal at a time
+        const prevFocus = document.activeElement;
+        const overlay = h("div", { class: "modal-overlay", role: "dialog", "aria-modal": "true" });
+        const focusables = () =>
+          Array.from(overlay.querySelectorAll('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])'))
+            .filter((el) => !el.disabled);
+        const onKey = (e) => {
+          if (e.key === "Escape") { e.preventDefault(); close(); return; }
+          if (e.key !== "Tab") return;
+          const f = focusables();
+          if (!f.length) return;
+          const first = f[0], last = f[f.length - 1];
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        };
+        function close() {
+          if (activeModalClose !== close) return;
+          document.removeEventListener("keydown", onKey, true);
+          overlay.remove();
+          activeModalClose = null;
+          if (prevFocus && prevFocus.focus) prevFocus.focus();
+          if (onClose) onClose();
+        }
+        overlay.append(buildContent(close));
+        overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+        activeModalClose = close;
+        document.addEventListener("keydown", onKey, true);
+        document.body.append(overlay);
+        const f = focusables();
+        if (f.length) f[0].focus();
+        return close;
+      }
+
       // ===== Profile Form =====
       function createProfileForm(initialData = null, onSave, onCancel) {
         const isEdit = !!initialData;
@@ -347,6 +424,7 @@
             h("label", {}, ["Frequency (Hz)"]),
             h("input", {
               type: "number",
+              inputmode: "numeric",
               min: "80",
               max: "160",
               value: initialData?.frequency || "120",
@@ -359,6 +437,7 @@
             h("label", {}, ["Duration (minutes)"]),
             h("input", {
               type: "number",
+              inputmode: "numeric",
               min: "1",
               max: "60",
               value: initialData?.duration || "5",
@@ -375,7 +454,7 @@
                 const name = form.querySelector('[data-field="name"]').value;
                 const freq = Number(form.querySelector('[data-field="frequency"]').value);
                 const dur = Number(form.querySelector('[data-field="duration"]').value);
-                if (!name || freq < 80 || freq > 160 || dur < 1 || dur > 60) {
+                if (!ProfileStore.valid(name, freq, dur)) {
                   form.querySelector('[data-role="form-error"]').textContent = "Invalid input";
                   return;
                 }
@@ -399,54 +478,38 @@
         return form;
       }
 
-      // ===== Device Picker Modal =====
-      function createDevicePickerModal(devices, onConfirm, onCancel) {
+      // ===== Device Picker (content builder; mounted via presentModal) =====
+      function buildDevicePicker(devices, onConfirm, close) {
         const selected = new Set(devices.map((d) => d.id)); // default: all selected
-        const modal = h("div", { class: "modal-overlay", "data-role": "device-picker-modal" }, [
-          h("div", { class: "modal-content" }, [
-            h("div", { class: "modal-header" }, ["Select Devices"]),
-            h("div", { class: "device-picker" }, devices.map((d) =>
-              h("label", {}, [
-                h("input", {
-                  type: "checkbox",
-                  checked: true,
-                  onChange: (e) => {
-                    if (e.target.checked) selected.add(d.id);
-                    else selected.delete(d.id);
-                  },
-                }),
-                ` ${d.name}`,
-              ])
-            )),
-            h("div", { class: "form-actions" }, [
-              h("button", {
-                onClick: () => {
-                  if (selected.size === 0) {
-                    alert("Select at least one device");
-                    return;
-                  }
-                  onConfirm(Array.from(selected));
-                  modal.remove();
+        const errorEl = h("div", { class: "error-message", role: "alert" });
+        return h("div", { class: "modal-content", "data-role": "device-picker-modal" }, [
+          h("div", { class: "modal-header" }, ["Select Devices"]),
+          h("div", { class: "device-picker" }, devices.map((d) =>
+            h("label", {}, [
+              h("input", {
+                type: "checkbox",
+                checked: true,
+                onChange: (e) => {
+                  if (e.target.checked) selected.add(d.id);
+                  else selected.delete(d.id);
+                  errorEl.textContent = "";
                 },
-              }, ["Start"]),
-              h("button", {
-                onClick: () => {
-                  onCancel();
-                  modal.remove();
-                },
-              }, ["Cancel"]),
-            ]),
+              }),
+              ` ${d.name}`,
+            ])
+          )),
+          errorEl,
+          h("div", { class: "form-actions" }, [
+            h("button", {
+              onClick: () => {
+                if (selected.size === 0) { errorEl.textContent = "Select at least one device"; return; }
+                close();
+                onConfirm(Array.from(selected));
+              },
+            }, ["Start"]),
+            h("button", { class: "cancel", onClick: () => close() }, ["Cancel"]),
           ]),
         ]);
-
-        modal.addEventListener("click", (e) => {
-          if (e.target === modal) {
-            onCancel();
-            modal.remove();
-          }
-        });
-
-        return modal;
       }
 
       // ===== Profiles View =====
@@ -457,9 +520,11 @@
         ]);
 
         const profiles = profileStore.getAll();
+        const noDevices = store.get().devices.length === 0;
         if (profiles.length === 0) {
           section.append(h("p", {}, ["No presets yet. Create one to get started."]));
         } else {
+          if (noDevices) section.append(h("p", { class: "hint" }, ["Connect a device to run a preset."]));
           for (const p of profiles) {
             const card = h("div", { class: "profile-card", "data-id": p.id }, [
               h("div", { class: "profile-info" }, [
@@ -469,6 +534,7 @@
               h("div", { class: "profile-actions" }, [
                 h("button", {
                   "data-action": "start",
+                  disabled: noDevices,
                   onClick: () => onStartProfile(p.id),
                 }, ["Start"]),
                 h("div", { class: "profile-subactions" }, [
@@ -480,11 +546,7 @@
                   h("button", {
                     class: "secondary",
                     "data-action": "delete",
-                    onClick: () => {
-                      if (confirm(`Delete preset "${p.name}"?`)) {
-                        onDeleteProfile(p.id);
-                      }
-                    },
+                    onClick: () => onDeleteProfile(p.id),
                   }, ["Delete"]),
                 ]),
               ]),
@@ -532,9 +594,13 @@
               try {
                 const dev = await ble.requestDevice();
                 store.addDevice(dev.id, dev.name);
+                // Sync the new device to the current global state so UI and motor agree.
+                pushSettings(ble, dev.id, store.get().global).catch(() => {});
                 onAdded(dev.id);
               } catch (e) {
-                error.textContent = (e && e.message) || "Could not connect";
+                // Cancelling the chooser is not an error.
+                if (e && (e.name === "NotFoundError" || e.name === "AbortError")) error.textContent = "";
+                else error.textContent = (e && e.message) || "Could not connect";
               }
             },
           },
@@ -546,7 +612,7 @@
 
       // ===== Control view =====
       function rangeWithValue(control, min, max, value, unit, onInput) {
-        const num = h("input", { type: "number", min, max, value, "data-control": control + "-num", "aria-label": `${control} ${unit}` });
+        const num = h("input", { type: "number", inputmode: "numeric", min, max, value, "data-control": control + "-num", "aria-label": `${control} ${unit}` });
         const range = h("input", {
           type: "range", "data-control": control, min, max, value,
           onInput: (e) => { const v = Number(e.target.value); num.value = v; onInput(v); },
@@ -581,6 +647,9 @@
           })]),
         ]);
       }
+      function batteryPillClass(pct) {
+        return "battery-pill" + (pct <= 15 ? " low" : pct <= 40 ? " warn" : "");
+      }
       function deviceCard(d, store, ble, rerender) {
         const id = d.id;
         const s = resolveSettings(store.get(), id);
@@ -588,9 +657,12 @@
         return h("article", { "data-role": "device-card", "data-id": id }, [
           h("header", {}, [
             d.name,
-            d.battery != null ? h("span", { class: "battery-pill" }, [`\u{1F50B} ${d.battery}%`]) : "",
+            d.battery != null ? h("span", { class: batteryPillClass(d.battery) }, [`\u{1F50B} ${d.battery}%`]) : "",
           ]),
           h("label", {}, ["Custom", checkbox("mode", d.mode === "custom", false, (v) => {
+            // Snapshot the live global into custom so the device keeps its current
+            // output when switching follow -> custom (no stale jump, no extra write).
+            if (v) store.setDeviceCustom(id, store.get().global);
             store.setDeviceMode(id, v ? "custom" : "follow");
             if (!v) pushSettings(ble, id, resolveSettings(store.get(), id));
             rerender();
@@ -668,23 +740,37 @@
         };
 
         const openForm = (initialData) => {
-          const overlay = h("div", { class: "modal-overlay" });
-          const form = createProfileForm(initialData, (data) => {
-            if (initialData) profileStore.update(initialData.id, data.name, data.frequency, data.duration);
-            else profileStore.create(data.name, data.frequency, data.duration);
-            overlay.remove();
-            renderAll();
-          }, () => overlay.remove());
-          overlay.append(h("div", { class: "modal-content" }, [
-            h("div", { class: "modal-header" }, [initialData ? "Edit preset" : "New preset"]),
-            form,
+          presentModal((close) => {
+            const form = createProfileForm(initialData, (data) => {
+              const ok = initialData
+                ? profileStore.update(initialData.id, data.name, data.frequency, data.duration)
+                : profileStore.create(data.name, data.frequency, data.duration);
+              if (!ok) { form.querySelector('[data-role="form-error"]').textContent = "Couldn't save (storage full?)"; return; }
+              close();
+              renderAll();
+            }, () => close());
+            return h("div", { class: "modal-content" }, [
+              h("div", { class: "modal-header" }, [initialData ? "Edit preset" : "New preset"]),
+              form,
+            ]);
+          });
+        };
+        const confirmAction = (message, onYes) => {
+          presentModal((close) => h("div", { class: "modal-content" }, [
+            h("div", { class: "modal-header" }, ["Confirm"]),
+            h("p", {}, [message]),
+            h("div", { class: "form-actions" }, [
+              h("button", { onClick: () => { close(); onYes(); } }, ["Delete"]),
+              h("button", { class: "cancel", onClick: () => close() }, ["Cancel"]),
+            ]),
           ]));
-          overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
-          document.body.append(overlay);
         };
         const onCreateProfile = () => openForm(null);
         const onEditProfile = (id) => openForm(profileStore.get(id));
-        const onDeleteProfile = (id) => { profileStore.delete(id); renderAll(); };
+        const onDeleteProfile = (id) => {
+          const p = profileStore.get(id);
+          confirmAction(`Delete preset "${p ? p.name : ""}"?`, () => { profileStore.delete(id); renderAll(); });
+        };
         const runProfile = (profile, deviceIds) => {
           for (const did of deviceIds) {
             // Chain the two writes: both hit one GATT characteristic, so firing
@@ -693,28 +779,27 @@
               .then(() => ble.setPower(did, true))
               .catch(() => {});
           }
-          timer.start(profile, deviceIds,
+          const started = timer.start(profile, deviceIds,
             (secs) => {
               const el = timerRoot.querySelector('[data-role="countdown"]');
               if (el) el.textContent = timer.formatTime(Math.max(0, secs));
             },
             () => { powerOffAll(deviceIds); renderAll(); },
           );
+          if (started === false) { powerOffAll(deviceIds); return; } // invalid duration
           renderAll();
         };
         const onStartProfile = (id) => {
           const profile = profileStore.get(id);
           if (!profile) return;
           const devices = store.get().devices;
-          if (devices.length === 0) { alert("Connect a device first."); return; }
+          if (devices.length === 0) return; // Start is disabled with no devices
           if (devices.length === 1) { runProfile(profile, [devices[0].id]); return; }
           // Multiple devices: let the user pick which ones this preset runs on.
-          const modal = createDevicePickerModal(
-            devices,
-            (selectedIds) => runProfile(profile, selectedIds),
+          presentModal(
+            (close) => buildDevicePicker(devices, (selectedIds) => runProfile(profile, selectedIds), close),
             () => {},
           );
-          document.body.append(modal);
         };
 
         // Update only the affected device's battery pill. A full renderAll here
@@ -729,15 +814,37 @@
             if (pct == null) { if (pill) pill.remove(); return; }
             if (!pill) {
               pill = document.createElement("span");
-              pill.className = "battery-pill";
               header.append(pill);
             }
+            pill.className = batteryPillClass(pct);
             pill.textContent = `\u{1F50B} ${pct}%`;
             return;
           }
         };
-        ble.onDisconnect((id) => { store.removeDevice(id); renderAll(); });
+        ble.onDisconnect((id) => {
+          store.removeDevice(id);
+          if (timer.isRunning) {
+            timer.deviceIds = timer.deviceIds.filter((d) => d !== id);
+            if (timer.deviceIds.length === 0) timer.stop();
+          }
+          renderAll();
+        });
         ble.onBattery((id, pct) => { store.setDeviceBattery(id, pct); updateBatteryPill(id, pct); });
+
+        // setInterval is suspended while the phone is locked/backgrounded, so the
+        // timer's own onComplete may not fire on time. On resume, if the session
+        // has expired, stop the motors immediately. (A firmware-side timeout is
+        // the real safety net; this covers the app side.)
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState !== "visible") return;
+          if (timer.isRunning && (timer.endTime - performance.now()) / 1000 <= 0) {
+            const ids = [...timer.deviceIds];
+            timer.stop();
+            powerOffAll(ids);
+            renderAll();
+          }
+        });
+
         renderAll();
       }
 
