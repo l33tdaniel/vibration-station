@@ -74,7 +74,7 @@
       const FREQ_MIN = 80;
       const FREQ_MAX = 160;
       const MAX_DEVICES = 4;
-      const VERSION = "2026-05-23.4"; // bump on each deploy; shown at page bottom
+      const VERSION = "2026-06-05.1"; // bump on each deploy; shown at page bottom
 
       // ===== Encoding =====
       function clamp(value, min, max) {
@@ -160,14 +160,18 @@
           this.deviceIds = [];
           this.profileId = null;
           this.intervalId = null;
+          this.endTime = 0;
         }
         start(profile, deviceIds, onTick, onComplete) {
           this.isRunning = true;
-          this.secondsLeft = profile.duration * 60;
           this.deviceIds = deviceIds;
           this.profileId = profile.id;
+          // Derive remaining time from a fixed end timestamp so setInterval
+          // jitter and float accumulation can't drift the countdown.
+          this.endTime = performance.now() + profile.duration * 60 * 1000;
+          this.secondsLeft = (this.endTime - performance.now()) / 1000;
           this.intervalId = setInterval(() => {
-            this.secondsLeft -= 0.1; // 100ms tick
+            this.secondsLeft = Math.max(0, (this.endTime - performance.now()) / 1000);
             onTick(this.secondsLeft);
             if (this.secondsLeft <= 0) {
               this.stop();
@@ -182,6 +186,7 @@
           this.secondsLeft = 0;
           this.deviceIds = [];
           this.profileId = null;
+          this.endTime = 0;
         }
         formatTime(seconds) {
           const mins = Math.floor(seconds / 60);
@@ -396,7 +401,7 @@
 
       // ===== Device Picker Modal =====
       function createDevicePickerModal(devices, onConfirm, onCancel) {
-        const selected = new Set();
+        const selected = new Set(devices.map((d) => d.id)); // default: all selected
         const modal = h("div", { class: "modal-overlay", "data-role": "device-picker-modal" }, [
           h("div", { class: "modal-content" }, [
             h("div", { class: "modal-header" }, ["Select Devices"]),
@@ -404,7 +409,7 @@
               h("label", {}, [
                 h("input", {
                   type: "checkbox",
-                  checked: false,
+                  checked: true,
                   onChange: (e) => {
                     if (e.target.checked) selected.add(d.id);
                     else selected.delete(d.id);
@@ -640,10 +645,14 @@
         const presetsRoot = document.createElement("div");
         app.append(timerRoot, presetsRoot, controlRoot, connectRoot);
 
+        // Power-off a disconnected device throws "not connected"; swallow it.
+        const powerOffAll = (ids) => {
+          for (const did of ids) Promise.resolve(ble.setPower(did, false)).catch(() => {});
+        };
         const onStop = () => {
           const ids = [...timer.deviceIds];
           timer.stop();
-          for (const did of ids) ble.setPower(did, false);
+          powerOffAll(ids);
           renderAll();
         };
         const renderAll = () => {
@@ -676,24 +685,59 @@
         const onCreateProfile = () => openForm(null);
         const onEditProfile = (id) => openForm(profileStore.get(id));
         const onDeleteProfile = (id) => { profileStore.delete(id); renderAll(); };
-        const onStartProfile = (id) => {
-          const profile = profileStore.get(id);
-          if (!profile) return;
-          const deviceIds = store.get().devices.map((d) => d.id);
-          if (deviceIds.length === 0) { alert("Connect a device first."); return; }
-          for (const did of deviceIds) { ble.setFrequency(did, profile.frequency); ble.setPower(did, true); }
+        const runProfile = (profile, deviceIds) => {
+          for (const did of deviceIds) {
+            // Chain the two writes: both hit one GATT characteristic, so firing
+            // them concurrently can throw "operation already in progress".
+            Promise.resolve(ble.setFrequency(did, profile.frequency))
+              .then(() => ble.setPower(did, true))
+              .catch(() => {});
+          }
           timer.start(profile, deviceIds,
             (secs) => {
               const el = timerRoot.querySelector('[data-role="countdown"]');
               if (el) el.textContent = timer.formatTime(Math.max(0, secs));
             },
-            () => { for (const did of deviceIds) ble.setPower(did, false); renderAll(); },
+            () => { powerOffAll(deviceIds); renderAll(); },
           );
           renderAll();
         };
+        const onStartProfile = (id) => {
+          const profile = profileStore.get(id);
+          if (!profile) return;
+          const devices = store.get().devices;
+          if (devices.length === 0) { alert("Connect a device first."); return; }
+          if (devices.length === 1) { runProfile(profile, [devices[0].id]); return; }
+          // Multiple devices: let the user pick which ones this preset runs on.
+          const modal = createDevicePickerModal(
+            devices,
+            (selectedIds) => runProfile(profile, selectedIds),
+            () => {},
+          );
+          document.body.append(modal);
+        };
 
+        // Update only the affected device's battery pill. A full renderAll here
+        // (fired every few seconds by notifications) would destroy any slider
+        // drag or number-input edit in progress.
+        const updateBatteryPill = (id, pct) => {
+          const cards = controlRoot.querySelectorAll('[data-role="device-card"]');
+          for (const card of cards) {
+            if (card.getAttribute("data-id") !== id) continue;
+            const header = card.querySelector("header");
+            let pill = header.querySelector(".battery-pill");
+            if (pct == null) { if (pill) pill.remove(); return; }
+            if (!pill) {
+              pill = document.createElement("span");
+              pill.className = "battery-pill";
+              header.append(pill);
+            }
+            pill.textContent = `\u{1F50B} ${pct}%`;
+            return;
+          }
+        };
         ble.onDisconnect((id) => { store.removeDevice(id); renderAll(); });
-        ble.onBattery((id, pct) => { store.setDeviceBattery(id, pct); renderAll(); });
+        ble.onBattery((id, pct) => { store.setDeviceBattery(id, pct); updateBatteryPill(id, pct); });
         renderAll();
       }
 
